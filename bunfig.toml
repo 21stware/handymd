@@ -1,2 +1,1 @@
-[test]
-preload = ["./test/setup.ts"]
+# Root workspace — install via workspaces; per-package test config lives in each package.

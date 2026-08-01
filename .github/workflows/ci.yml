@@ -32,19 +32,29 @@ jobs:
         run: bun run typecheck
 
       - name: Unit tests
-        run: bun test
+        run: bun run test
 
       - name: Build library
-        run: bun run build
+        run: bun run build:sdk
 
-      - name: Build landing site (static)
+      - name: Build site (static)
         run: bun run build:site
         env:
           BASE_PATH: /handymd/
 
+      - name: Build app (PWA)
+        run: bun run build:app
+
       - name: Upload site artifact
         uses: actions/upload-artifact@v4
         with:
-          name: landing-site
-          path: example-dist/
+          name: site
+          path: apps/site/dist/
+          retention-days: 7
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app
+          path: apps/app/dist/
           retention-days: 7

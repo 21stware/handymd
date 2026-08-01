@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>handymd — Markdown 编辑器</title>
+    <meta
+      name="description"
+      content="Bear 风格源码保真 Markdown 编辑器。打开、阅读、编辑、保存 .md 文件。可安装为 PWA。"
+    />
+    <meta name="theme-color" content="#f7f3eb" />
+    <meta name="color-scheme" content="light" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="bar">
+        <a class="brand" href="./" aria-label="handymd">
+          <span class="brand-mark" aria-hidden="true">h</span>
+          <span>handymd</span>
+        </a>
+        <div class="file-info">
+          <span class="save-dot" id="save-dot" data-status="clean" title="保存状态"></span>
+          <span class="file-name" id="file-name">welcome.md</span>
+          <span class="file-meta" id="file-meta">本地草稿</span>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn-ghost" id="btn-new" title="新建文稿">新建</button>
+          <button type="button" class="btn btn-ghost" id="btn-open" title="打开 .md 文件">打开</button>
+          <button type="button" class="btn btn-ghost" id="btn-save" title="保存到本机">保存</button>
+          <button type="button" class="btn btn-ghost" id="btn-save-as" title="另存为新文件">另存为</button>
+          <button type="button" class="btn btn-ghost" id="btn-readonly" title="切换只读">只读</button>
+          <button type="button" class="btn btn-primary" id="btn-install" hidden>安装应用</button>
+        </div>
+      </header>
+
+      <main class="stage" id="stage">
+        <div class="editor-skeleton" id="skeleton" aria-hidden="true">
+          <div class="sk sk-h"></div>
+          <div class="sk sk-p"></div>
+          <div class="sk sk-p short"></div>
+          <div class="sk sk-li"></div>
+          <div class="sk sk-li"></div>
+          <div class="sk sk-quote"></div>
+        </div>
+        <div id="editor" class="editor-mount" hidden></div>
+        <div class="empty" id="empty" hidden>
+          <h2>没有打开的文稿</h2>
+          <p>拖放 .md 文件到此处，或点击「打开」选择文件。安装为应用后可在系统「打开方式」里直接调用。</p>
+          <button type="button" class="btn btn-primary" id="btn-empty-open">打开文件</button>
+        </div>
+      </main>
+    </div>
+
+    <div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true">
+      <div class="drop-card">
+        <strong>放开以打开 Markdown</strong>
+        <span>支持 .md / .markdown / .txt</span>
+      </div>
+    </div>
+
+    <input
+      type="file"
+      id="file-input"
+      class="sr-only"
+      accept=".md,.markdown,.mdown,.txt,text/markdown,text/plain"
+    />
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

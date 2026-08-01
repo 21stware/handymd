@@ -14,5 +14,5 @@
     "noEmit": true,
     "types": ["@types/bun"]
   },
-  "include": ["src", "test", "example", "site", "scripts"]
+  "files": []
 }

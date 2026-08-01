@@ -4,10 +4,10 @@
  * Mermaid is pulled via dynamic import inside createMermaidRenderer,
  * so it lands in a separate chunk after the playground mounts.
  */
-// Import editor / diagram entries only — never `src/index` (re-exports shiki helpers).
-import { createEditor, type HandyEditor } from '../src/editor'
-import { createMermaidRenderer } from '../src/diagram'
-import '../src/style.css'
+// Import from the workspace package (shiki is only pulled if createShikiHighlighter
+// is called — the landing playground never calls it, so shiki stays out of the graph).
+import { createEditor, createMermaidRenderer, type HandyEditor } from '@21stware/handymd'
+import '@21stware/handymd/style.css'
 import { SAMPLE_MARKDOWN } from './sample'
 
 export type PlaygroundApi = {

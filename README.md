@@ -1,16 +1,25 @@
-# @21stware/handymd
+# handymd
 
 Bear 风格的**源码保真** Markdown 编辑器 SDK，基于 [ProseMirror](https://prosemirror.net)，工具链基于 [Bun](https://bun.sh)。
 
 核心理念：**文档即 Markdown 源码 + 按光标位置选择性隐藏标记符**。没有富文本模型 —— 语义只存在于 decoration 层；每个元素在 `Concealed` / `Revealed` 之间由 selection 纯函数推导，不为元素存状态对象。
 
+这是一个 monorepo（Bun workspaces）：
+
+```
+packages/handymd   SDK 源码包（@21stware/handymd）
+apps/app          PWA Markdown 编辑器（可安装为 .md 打开器）
+apps/site         文档站（Landing + docs 渲染，部署到 GitHub Pages）
+```
+
 **Landing / 在线试写：** https://21stware.github.io/handymd/
 
-本地开发：
+## 快速开始
 
 ```bash
-bun run dev:site   # Landing Page（GitHub Pages 同源）
-bun run dev        # 开发调试页 example/
+bun install          # 安装整个 workspace
+bun run dev:site     # 文档站（Landing + playground + docs）
+bun run dev:app      # PWA 编辑器应用
 ```
 
 ```bash
@@ -19,7 +28,7 @@ bun add @21stware/handymd
 npm install @21stware/handymd
 ```
 
-## 快速开始
+## SDK 用法
 
 ```ts
 import { createEditor, createMermaidRenderer, createShikiHighlighter } from '@21stware/handymd'
@@ -44,13 +53,13 @@ await editor.flush()
 await editor.destroy()
 ```
 
-更完整的用法见：
+更完整的用法见 [文档站](https://21stware.github.io/handymd/docs/guide.html)：
 
 | 文档 | 内容 |
 |---|---|
-| [docs/guide.md](./docs/guide.md) | 安装、接入、主题、快捷键、协同冲突、常见场景 |
-| [docs/api.md](./docs/api.md) | 完整 API 参考 |
-| [docs/architecture.md](./docs/architecture.md) | 四层状态机与 ProseMirror 映射 |
+| [使用指南](https://21stware.github.io/handymd/docs/guide.html) | 安装、接入、主题、快捷键、协同冲突、常见场景 |
+| [API 参考](https://21stware.github.io/handymd/docs/api.html) | 完整 API 参考 |
+| [架构](https://21stware.github.io/handymd/docs/architecture.html) | 四层状态机与 ProseMirror 映射 |
 
 ## 手感一览
 
@@ -85,19 +94,21 @@ await editor.destroy()
 
 ```bash
 bun install
-bun test                 # 单元测试（happy-dom）
-bun run typecheck
-bun run build            # dist/（ESM + d.ts + style.css）
-bun run dev              # example/ 演示
-bun run e2e              # 29 项真实 Chromium 端到端（需先 bun run dev）
+bun run test                 # SDK 单元测试（happy-dom）
+bun run typecheck            # 全 workspace 类型检查
+bun run build:sdk            # dist/（ESM + d.ts + style.css）
+bun run build:site           # 文档站静态产物（apps/site/dist）
+bun run build:app            # PWA 应用产物（apps/app/dist）
+bun run build                # 三个全部构建
+bun run e2e                  # SDK 端到端（需先启动一个编辑器宿主）
 ```
 
-## 发布
+## 发布（SDK）
 
 ```bash
-bun run prepublishOnly   # typecheck + test + build
+cd packages/handymd
+bun run prepublishOnly       # typecheck + test + build
 npm publish --access public
-```
 ```
 
 ## License

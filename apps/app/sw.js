@@ -1,7 +1,6 @@
-/* handymd landing — cache-first shell for installability & offline open. */
-const CACHE = 'handymd-shell-v1'
+/* handymd app — cache-first shell for installability & offline editing. */
+const CACHE = 'handymd-app-shell-v1'
 
-// Precache only the shell; hashed assets are cached on demand.
 const PRECACHE = ['./', './index.html', './styles.css', './manifest.webmanifest', './favicon.svg']
 
 self.addEventListener('install', (event) => {
