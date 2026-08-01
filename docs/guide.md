@@ -278,6 +278,7 @@ insertTable({ rows: 3, cols: 3 })(view.state, view.dispatch)
 | `Enter` | 在下方插入空表体行 |
 
 源码仍是标准 GFM（`getMarkdown()` 无损）。分隔行在视图中折叠，由表头加粗底边表达。
+光标不在表格行时以列布局 widget 渲染（单元格内链接/加粗可正确对齐）；点击行进入源码编辑。
 
 ## 自建 EditorView（不用 createEditor）
 

@@ -262,10 +262,22 @@
   width: 100%;
 }
 
-/* 表格：每行一个 block，用 flex 把单元格排成列；管道符脱出文档流 */
-.handymd .hm-table.hm-table-header,
-.handymd .hm-table.hm-table-row {
+/* 表格：Concealed 用 widget（.hm-table-visual）画列；源码行折叠。
+   不能在源码 inline span 上做 flex —— PM 会把重叠 deco（如 link）合并成平铺片段拆列。 */
+.handymd .hm-table.hm-table-rendered {
   position: relative;
+  min-height: 0;
+  line-height: 0;
+}
+.handymd .hm-table.hm-table-first,
+.handymd .hm-table.hm-table-only {
+  margin-top: 0.5em;
+}
+.handymd .hm-table.hm-table-last,
+.handymd .hm-table.hm-table-only {
+  margin-bottom: 0.5em;
+}
+.handymd .hm-table-visual {
   display: flex;
   align-items: stretch;
   width: 100%;
@@ -274,47 +286,44 @@
   border-right: 1px solid var(--hm-table-border);
   border-bottom: 1px solid var(--hm-table-border);
   min-height: 1.75em;
+  line-height: 1.75;
   padding: 0;
   margin: 0;
+  cursor: text;
+  user-select: none;
 }
-.handymd .hm-table.hm-table-header {
-  font-weight: 600;
-  background: var(--hm-table-header-bg);
+.handymd .hm-table-first .hm-table-visual,
+.handymd .hm-table-only .hm-table-visual {
   border-top: 1px solid var(--hm-table-border);
-  border-bottom: 2px solid var(--hm-table-border);
-}
-.handymd .hm-table.hm-table-first,
-.handymd .hm-table.hm-table-only {
   border-top-left-radius: 6px;
   border-top-right-radius: 6px;
-  margin-top: 0.5em;
 }
-.handymd .hm-table.hm-table-last,
-.handymd .hm-table.hm-table-only {
+.handymd .hm-table-last .hm-table-visual,
+.handymd .hm-table-only .hm-table-visual {
   border-bottom-left-radius: 6px;
   border-bottom-right-radius: 6px;
-  margin-bottom: 0.5em;
 }
-.handymd .hm-table-cell {
+.handymd .hm-table-visual-header {
+  font-weight: 600;
+  background: var(--hm-table-header-bg);
+  border-bottom: 2px solid var(--hm-table-border);
+}
+.handymd .hm-table-visual .hm-table-cell {
   flex: 1 1 0;
   min-width: 0;
   padding: 4px 10px;
   box-sizing: border-box;
+  overflow-wrap: anywhere;
 }
-.handymd .hm-table-cell[data-col]:not([data-col='0']) {
+.handymd .hm-table-visual .hm-table-cell[data-col]:not([data-col='0']) {
   border-left: 1px solid var(--hm-table-border);
 }
-/* 管道符：绝对定位脱出 flex，避免占一列 */
-.handymd .hm-table-pipe {
-  position: absolute;
-  width: 0 !important;
-  height: 0 !important;
-  overflow: hidden !important;
-  font-size: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  border: none !important;
-  pointer-events: none;
+/* 源码态（光标在行内）：普通文本行，管道符弱化可见 */
+.handymd .hm-table.hm-table-source {
+  min-height: 1.75em;
+  line-height: 1.75;
+  font-family: var(--hm-mono);
+  font-size: 0.92em;
 }
 /* 分隔行：完全折叠，由表头加粗底边表达 */
 .handymd .hm-table.hm-table-sep {

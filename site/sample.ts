@@ -30,6 +30,15 @@ export function conceal(doc: string, sel: [number, number]) {
 
 标签走 pill：#demo/handymd
 
+## 表格
+
+GFM 管道表格请用 \`editor.insertTable()\` 创建；已有源码会直接渲染。含链接的单元格也能对齐：
+
+| 文档 | 内容 |
+|---|---|
+| [docs/guide.md](./docs/guide.md) | 安装、接入、主题、快捷键 |
+| [docs/api.md](./docs/api.md) | 完整 API 参考 |
+
 ---
 
 把本地 \`.md\` 拖进页面，或安装 PWA 后用系统「打开方式」。
