@@ -1,29 +1,47 @@
 /**
- * handymd app shell — PWA Markdown opener / editor.
+ * handymd writing app — immersive shell.
+ *
+ * No toolbar / sidebar. Interaction model:
+ *   • Type immediately on a blank page
+ *   • ⌘/Ctrl+O  open
+ *   • ⌘/Ctrl+S  save
+ *   • ⌘/Ctrl+⇧+S  save as
+ *   • ⌘/Ctrl+N  new
+ *   • Drag & drop .md
+ *   • OS “Open with” via file_handlers
  */
 import { mountAppEditor, type AppEditorApi } from './editor'
 import './styles.css'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null
 
-const stage = $('stage')
 const editorMount = $('editor')
-const skeleton = $('skeleton')
-const empty = $('empty')
-const saveDot = $('save-dot')
-const fileNameEl = $('file-name')
-const fileMetaEl = $('file-meta')
+const statusEl = $('status')
 const fileInput = $('file-input') as HTMLInputElement | null
 const dropOverlay = $('drop-overlay')
-const btnSave = $('btn-save')
-const btnSaveAs = $('btn-save-as')
-const btnInstall = $('btn-install')
 
 let app: AppEditorApi | null = null
-let appPromise: Promise<AppEditorApi> | null = null
-let deferredInstall: BeforeInstallPromptEvent | null = null
+let statusTimer = 0
 
-// ——— Toast ———
+// ——— Status (ephemeral, top center) ———
+function showStatus(text: string, tone: 'neutral' | 'dirty' | 'ok' = 'neutral', ms = 1800) {
+  if (!statusEl) return
+  statusEl.hidden = false
+  statusEl.textContent = text
+  statusEl.dataset.tone = tone === 'neutral' ? '' : tone
+  // force reflow so re-show animates
+  void statusEl.offsetWidth
+  statusEl.classList.add('is-on')
+  window.clearTimeout(statusTimer)
+  statusTimer = window.setTimeout(() => {
+    statusEl.classList.remove('is-on')
+    window.setTimeout(() => {
+      if (!statusEl.classList.contains('is-on')) statusEl.hidden = true
+    }, 280)
+  }, ms)
+}
+
+// ——— Toast (rare) ———
 let toastEl: HTMLDivElement | null = null
 function toast(msg: string) {
   if (!toastEl) {
@@ -37,51 +55,33 @@ function toast(msg: string) {
   window.clearTimeout((toastEl as HTMLDivElement & { _t?: number })._t)
   ;(toastEl as HTMLDivElement & { _t?: number })._t = window.setTimeout(() => {
     toastEl?.classList.remove('is-on')
-  }, 2200)
+  }, 2000)
 }
 
-// ——— Editor bootstrap ———
+// ——— Bootstrap ———
 async function ensureEditor(): Promise<AppEditorApi> {
   if (app) return app
-  if (appPromise) return appPromise
+  if (!editorMount) throw new Error('editor mount missing')
 
-  appPromise = (async () => {
-    skeleton?.remove()
-    empty?.setAttribute('hidden', '')
-    if (editorMount) editorMount.hidden = false
-    if (!editorMount) throw new Error('editor mount missing')
-    app = await mountAppEditor(editorMount, {
-      onSaveStatus: (status) => {
-        if (!saveDot) return
-        const map: Record<string, string> = {
-          clean: 'clean',
-          dirty: 'dirty',
-          saving: 'saving',
-          retrying: 'saving',
-          offline: 'dirty',
-        }
-        saveDot.dataset.status = map[status] ?? 'clean'
-      },
-      onFileName: (name, meta) => {
-        if (fileNameEl) fileNameEl.textContent = name
-        if (fileMetaEl) fileMetaEl.textContent = meta
-      },
-    })
-    return app
-  })()
-
-  try {
-    return await appPromise
-  } catch (err) {
-    appPromise = null
-    console.error(err)
-    toast('编辑器加载失败')
-    throw err
-  }
+  app = await mountAppEditor(editorMount, {
+    onSaveStatus: (status) => {
+      if (status === 'dirty') showStatus('•', 'dirty', 1200)
+      else if (status === 'saving' || status === 'retrying') showStatus('saving…', 'neutral', 1200)
+      else if (status === 'clean') showStatus('saved', 'ok', 1400)
+      else if (status === 'offline') showStatus('offline draft', 'dirty', 2200)
+    },
+    onFileName: (name) => {
+      // Title bar is the only persistent chrome (OS window title).
+      document.title = name.replace(/\.md$/i, '') || 'Untitled'
+    },
+  })
+  return app
 }
 
-// Auto-load on first paint — the app is an editor, no need to wait.
-void ensureEditor()
+void ensureEditor().catch((err) => {
+  console.error(err)
+  toast('Failed to start editor')
+})
 
 // ——— File open ———
 async function openFile(file: File, handle?: FileSystemFileHandle | null) {
@@ -89,7 +89,7 @@ async function openFile(file: File, handle?: FileSystemFileHandle | null) {
   const p = await ensureEditor()
   p.openMarkdown(md, { name: file.name, handle: handle ?? null })
   p.focus()
-  toast(`已打开 ${file.name}`)
+  showStatus(file.name, 'ok', 1600)
 }
 
 async function pickFile() {
@@ -128,35 +128,48 @@ fileInput?.addEventListener('change', async () => {
   fileInput.value = ''
 })
 
-for (const id of ['btn-open', 'btn-empty-open'] as const) {
-  $(id)?.addEventListener('click', () => void pickFile())
+// ——— Keyboard (primary UI) ———
+function isMod(e: KeyboardEvent) {
+  return e.metaKey || e.ctrlKey
 }
 
-// ——— New / Save / Save As ———
-$('btn-new')?.addEventListener('click', async () => {
-  const p = await ensureEditor()
-  p.openMarkdown('# untitled.md\n\n', { name: 'untitled.md', handle: null })
-  p.focus()
-  toast('已新建文稿')
-})
+window.addEventListener('keydown', (e) => {
+  if (!isMod(e)) return
+  const key = e.key.toLowerCase()
 
-btnSave?.addEventListener('click', async () => {
-  const p = await ensureEditor()
-  await p.saveToHandle()
-  toast('已保存')
-})
+  // ⌘S save · ⌘⇧S save as
+  if (key === 's') {
+    e.preventDefault()
+    void (async () => {
+      const p = await ensureEditor()
+      if (e.shiftKey) {
+        const ok = await p.saveAs()
+        if (ok) showStatus(p.getFileName(), 'ok')
+      } else {
+        const ok = await p.saveToHandle()
+        if (ok) showStatus(p.hasHandle() ? 'saved' : p.getFileName(), 'ok')
+      }
+    })()
+    return
+  }
 
-btnSaveAs?.addEventListener('click', async () => {
-  const p = await ensureEditor()
-  const ok = await p.saveAs()
-  if (ok) toast('已另存')
-})
+  // ⌘O open
+  if (key === 'o') {
+    e.preventDefault()
+    void pickFile()
+    return
+  }
 
-$('btn-readonly')?.addEventListener('click', async () => {
-  const p = await ensureEditor()
-  const next = !p.getReadOnly()
-  p.setReadOnly(next)
-  toast(next ? '已进入只读' : '已退出只读')
+  // ⌘N new
+  if (key === 'n') {
+    e.preventDefault()
+    void (async () => {
+      const p = await ensureEditor()
+      p.newDocument()
+      showStatus('Untitled', 'neutral')
+    })()
+    return
+  }
 })
 
 // ——— Drag & drop ———
@@ -199,13 +212,13 @@ window.addEventListener('drop', (e) => {
     file.type === 'text/plain' ||
     file.type === ''
   if (!ok) {
-    toast('请拖入 Markdown 文件')
+    toast('Drop a Markdown file')
     return
   }
   void openFile(file, null)
 })
 
-// ——— PWA file_handlers — open .md via OS "Open with" ———
+// ——— PWA file_handlers ———
 type LaunchParams = { files?: FileSystemFileHandle[] }
 const launchQueue = (
   window as Window & {
@@ -217,59 +230,27 @@ if (launchQueue && typeof launchQueue.setConsumer === 'function') {
   launchQueue.setConsumer(async (params) => {
     const handles = params.files ?? []
     if (!handles.length) return
-    const handle = handles[0]
+    const handle = handles[0]!
     try {
       const file = await handle.getFile()
       await openFile(file, handle)
     } catch (err) {
       console.error('launchQueue open failed', err)
-      toast('无法打开系统传入的文件')
+      toast('Could not open file')
     }
   })
 }
 
-// ——— PWA install prompt ———
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
-}
-
+// Capture install prompt silently (browser menu / OS install UI).
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault()
-  deferredInstall = e as BeforeInstallPromptEvent
-  btnInstall?.removeAttribute('hidden')
-})
-
-btnInstall?.addEventListener('click', async () => {
-  if (!deferredInstall) {
-    toast('请使用浏览器菜单「安装应用」')
-    return
-  }
-  await deferredInstall.prompt()
-  const choice = await deferredInstall.userChoice
-  if (choice.outcome === 'accepted') toast('已安装 — 可用系统打开 .md')
-  deferredInstall = null
-  btnInstall?.setAttribute('hidden', '')
-})
-
-window.addEventListener('appinstalled', () => {
-  deferredInstall = null
-  btnInstall?.setAttribute('hidden', '')
-  toast('安装成功')
 })
 
 // ——— Service worker ———
 if ('serviceWorker' in navigator) {
   if (location.protocol === 'https:' || location.hostname === 'localhost') {
     window.addEventListener('load', () => {
-      void navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {
-        /* dev servers without sw.js are fine */
-      })
+      void navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {})
     })
   }
 }
-
-// Keep stage focusable for keyboard
-stage?.addEventListener('click', (e) => {
-  if (e.target === stage) app?.focus()
-})
