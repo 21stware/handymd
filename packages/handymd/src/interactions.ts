@@ -52,6 +52,29 @@ function enterDiagramAt(view: EditorView, dom: HTMLElement): boolean {
   return false
 }
 
+/** 点击渲染态表格行 → 光标进入该行首格（触发源码 Revealed） */
+function enterTableRowAt(view: EditorView, dom: HTMLElement): boolean {
+  const st = concealKey.getState(view.state)
+  if (!st || st.readOnly) return false
+  let pos: number
+  try {
+    pos = view.posAtDOM(dom, 0)
+  } catch {
+    return false
+  }
+  for (const block of st.blocks) {
+    if (pos < block.pos || pos > block.pos + block.size) continue
+    if (block.line.t !== 'tableHeader' && block.line.t !== 'tableRow') return false
+    const cell = block.elements.find((e) => e.kind === 'tableCell')
+    let caret = cell ? cell.from : block.pos + 1
+    if (cell && block.text[cell.from - (block.pos + 1)] === ' ') caret = Math.min(cell.to, cell.from + 1)
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, caret)))
+    view.focus()
+    return true
+  }
+  return false
+}
+
 function toggleTodoAt(view: EditorView, dom: Node): boolean {
   const st = concealKey.getState(view.state)
   if (!st) return false
@@ -102,6 +125,22 @@ export function interactionsPlugin(options: InteractionOptions = {}): Plugin {
           if (diagram) {
             event.preventDefault()
             enterDiagramAt(view, diagram)
+            return true
+          }
+
+          // 表格渲染 widget：链接单击打开；其余点击进入该行源码
+          const tableVisual = target?.closest?.('.hm-table-visual') as HTMLElement | null
+          if (tableVisual) {
+            const linkEl = target?.closest?.('.hm-link') as HTMLElement | null
+            const href = linkEl?.getAttribute('data-href')
+            if (href && !event.metaKey && !event.ctrlKey) {
+              event.preventDefault()
+              if (event.detail >= 2) return true
+              openLink(href)
+              return true
+            }
+            event.preventDefault()
+            enterTableRowAt(view, tableVisual)
             return true
           }
 

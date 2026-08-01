@@ -280,10 +280,12 @@ export function parseDoc(doc: PMNode): BlockMeta[] {
         const edge = tableEdge.get(i)
         const parsed = parseTableRow(text)
         const kind = li.t
+        // 表头/表体不 permanent：Concealed 用整行 widget 画列（避免 PM 合并
+        // inline deco 拆列）；光标进入 Revealed 编辑源码。分隔行永久折叠。
         els.push({
           kind,
           scope: 'block',
-          permanent: true,
+          permanent: kind === 'tableSep',
           from: pos,
           to: pos + size,
           ...blockHit,

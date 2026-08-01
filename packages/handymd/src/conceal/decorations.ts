@@ -2,6 +2,7 @@ import { Decoration } from 'prosemirror-view'
 import type { DiagramRenderCallback } from '../diagram'
 import type { ElementRange, Span } from '../elements'
 import type { BlockMeta } from '../parse/docparse'
+import { buildTableRowVisual } from './tableview'
 
 /**
  * 由 (元素, 是否 Revealed) 生成 decoration —— L3 状态的"渲染输出"。
@@ -410,36 +411,36 @@ export function buildBlockDecos(
         const edgeCls =
           edge === 'first' ? ' hm-table-first' : edge === 'last' ? ' hm-table-last' : edge === 'only' ? ' hm-table-only' : ''
         const roleCls = el.kind === 'tableHeader' ? 'hm-table-header' : 'hm-table-row'
-        nodeDeco(block, el, rev, `hm-table ${roleCls}${edgeCls}`, out)
-        // 管道符永久隐藏，并打上 hm-table-pipe 以便从 flex 流中脱出
-        for (const m of el.markers) {
-          if (m.from >= m.to) continue
-          out.push(
-            Decoration.inline(
-              m.from,
-              m.to,
-              { class: 'hm-marker hm-concealed hm-table-pipe' },
-              spec(el, 'marker', true),
-            ),
+        if (rev) {
+          // 源码态：显示管道表格文本，管道符弱化
+          nodeDeco(block, el, true, `hm-table hm-table-source ${roleCls}${edgeCls}`, out)
+          markerDecos(el, true, out)
+        } else {
+          // 渲染态：整行源码隐藏，用 widget 画真实列（可正确容纳链接等行内样式）
+          nodeDeco(block, el, false, `hm-table hm-table-rendered ${roleCls}${edgeCls}`, out)
+          const lineFrom = block.pos + 1
+          const lineTo = block.pos + 1 + block.text.length
+          concealSpan(el, { from: lineFrom, to: lineTo }, out)
+          widget(
+            el,
+            lineFrom,
+            `tr:${el.kind}:${lineFrom}:${block.text}`,
+            () => buildTableRowVisual(block, el.kind as 'tableHeader' | 'tableRow'),
+            out,
+            -1,
           )
         }
         break
       }
 
       case 'tableSep':
-        // 分隔行整行隐藏，视觉上由表头底边承担
+        // 分隔行整行隐藏，视觉上由表头加粗底边承担
         nodeDeco(block, el, rev, 'hm-table hm-table-sep', out)
         markerDecos(el, false, out)
         break
 
       case 'tableCell':
-        contentDeco(
-          el,
-          false,
-          'hm-table-cell',
-          out,
-          el.attrs?.col !== undefined ? { 'data-col': String(el.attrs.col) } : undefined,
-        )
+        // 列布局由 widget 承担；源码态无需再给 cell 套 flex class（会与 link deco 冲突）
         break
     }
   })

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { EditorState, TextSelection } from 'prosemirror-state'
+import { EditorView } from 'prosemirror-view'
 import { classifyLines } from '../src/parse/blocks'
 import {
   buildTableMarkdown,
@@ -149,27 +150,28 @@ describe('table keymap', () => {
 })
 
 describe('table decorations', () => {
-  test('pipes concealed; sep collapsed; cells styled', () => {
-    const md = '| H |\n| --- |\n| x |'
-    const state = EditorState.create({
+  test('concealed rows use visual widgets; sep collapsed', () => {
+    // 在表格后加一段落，把光标移开，否则默认 selection 在表头会 Revealed
+    const md = '| H |\n| --- |\n| x |\n\nafter'
+    let state = EditorState.create({
       doc: markdownToDoc(md),
       plugins: [concealPlugin()],
     })
+    const afterPos = md.split('\n').reduce((pos, line, i, arr) => {
+      if (i < arr.length - 1) return pos + line.length + 2
+      return pos + 1
+    }, 0)
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, afterPos)))
     const set = concealKey.getState(state)!.set
-    const pipes = set.find(
+    const widgets = set.find(
       undefined,
       undefined,
-      (spec) => (spec as { kind?: string; role?: string }).kind === 'tableHeader' && (spec as { role?: string }).role === 'marker',
+      (spec) =>
+        ((spec as { kind?: string }).kind === 'tableHeader' ||
+          (spec as { kind?: string }).kind === 'tableRow') &&
+        (spec as { role?: string }).role === 'widget',
     )
-    expect(pipes.length).toBeGreaterThan(0)
-    expect(pipes.every((d) => (d.spec as { concealed: boolean }).concealed)).toBe(true)
-
-    const cells = set.find(
-      undefined,
-      undefined,
-      (spec) => (spec as { kind?: string }).kind === 'tableCell',
-    )
-    expect(cells.length).toBe(2) // header + body
+    expect(widgets.length).toBe(2) // header + body
 
     const sep = set.find(
       undefined,
@@ -177,5 +179,38 @@ describe('table decorations', () => {
       (spec) => (spec as { kind?: string; role?: string }).kind === 'tableSep' && (spec as { role?: string }).role === 'node',
     )
     expect(sep.length).toBe(1)
+  })
+
+  test('link-in-cell keeps two visual columns (no flex fragment split)', () => {
+    const md = [
+      '更完整的用法见：',
+      '',
+      '| 文档 | 内容 |',
+      '|---|---|',
+      '| [docs/api.md](./docs/api.md) | 完整 API 参考 |',
+      '| [docs/architecture.md](./docs/architecture.md) | 四层状态机与 ProseMirror 映射 |',
+    ].join('\n')
+
+    const mount = document.createElement('div')
+    document.body.appendChild(mount)
+    mount.classList.add('handymd')
+    const view = new EditorView(mount, {
+      state: EditorState.create({ doc: markdownToDoc(md), plugins: [concealPlugin()] }),
+    })
+
+    const visuals = [...mount.querySelectorAll('.hm-table-visual')]
+    expect(visuals.length).toBe(3) // header + 2 body
+    for (const row of visuals) {
+      const cells = row.querySelectorAll(':scope > .hm-table-cell')
+      expect(cells.length).toBe(2)
+    }
+    // link text rendered inside first body cell, not split across columns
+    const firstBody = visuals[1]!
+    expect(firstBody.querySelectorAll(':scope > .hm-table-cell').length).toBe(2)
+    expect(firstBody.textContent).toContain('docs/api.md')
+    expect(firstBody.textContent).toContain('完整 API 参考')
+    expect(firstBody.querySelector('.hm-link')?.textContent).toBe('docs/api.md')
+    view.destroy()
+    mount.remove()
   })
 })
