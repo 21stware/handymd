@@ -1,5 +1,7 @@
-/* handymd landing — cache-first shell for installability & offline open. */
-const CACHE = 'handymd-shell-v1'
+/* handymd landing — installability + offline shell.
+ * Bump CACHE when shell/caching strategy changes so activate() drops stale bundles.
+ * JS/CSS are network-first to avoid serving pre-feature playground chunks. */
+const CACHE = 'handymd-shell-v2'
 
 // Precache only the shell; hashed assets are cached on demand.
 const PRECACHE = ['./', './index.html', './styles.css', './manifest.webmanifest', './favicon.svg']
@@ -43,7 +45,30 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Static assets: stale-while-revalidate
+  const path = url.pathname
+  const isCode =
+    path.endsWith('.js') ||
+    path.endsWith('.css') ||
+    path.endsWith('.mjs') ||
+    path.includes('/chunks/')
+
+  // JS/CSS: network-first so feature deploys are not masked by stale SW cache
+  if (isCode) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone()
+            void caches.open(CACHE).then((c) => c.put(req, copy))
+          }
+          return res
+        })
+        .catch(() => caches.match(req).then((c) => c || Response.error())),
+    )
+    return
+  }
+
+  // Other static assets: stale-while-revalidate
   event.respondWith(
     caches.match(req).then((cached) => {
       const network = fetch(req)
