@@ -1,4 +1,4 @@
-/** Default landing playground document — showcases conceal/reveal + blocks. */
+/** Default landing playground document — showcases conceal/reveal + blocks + diagram. */
 export const SAMPLE_MARKDOWN = `# handymd
 
 文档即 **Markdown 源码**。把光标移进 \`**粗体**\` 的紧邻外侧 —— 标记符按 selection 显现。
@@ -27,6 +27,16 @@ export function conceal(doc: string, sel: [number, number]) {
   return sel[0] >= 0 && sel[1] <= doc.length
 }
 \`\`\`
+
+## Diagram block（Live Render）
+
+\`\`\`mermaid
+flowchart LR
+    A[源码 Markdown] -->|光标离开| B((渲染为图表))
+    B -->|点击图表 / 光标进入| A
+\`\`\`
+
+↑ 光标离开 \`\`\`mermaid 围栏就渲染成图；点击图表（或键盘移入）立刻回到源码编辑。
 
 标签走 pill：#demo/handymd
 
