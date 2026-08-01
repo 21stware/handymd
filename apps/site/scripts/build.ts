@@ -6,7 +6,7 @@
  *   OUTDIR     output directory (default `dist`)
  */
 import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { renderMarkdown } from './markdown'
 
 const outdir = process.env.OUTDIR ?? 'dist'
@@ -71,9 +71,10 @@ await cp('styles.css', join(outdir, 'styles.css'))
 await cp('docs.css', join(outdir, 'docs.css'))
 await cp('favicon.svg', join(outdir, 'favicon.svg'))
 await cp('sw.js', join(outdir, 'sw.js'))
-await cp('manifest.webmanifest', join(outdir, 'manifest.webmanifest'))
+// Site is a documentation landing page — not an installable editor PWA.
+// (The pure editor lives at ./app/ and carries the real webmanifest + file_handlers.)
 
-// ——— 3) PWA / OG PNG icons (checked-in assets; avoid runtime PNG encode) ———
+// ——— 3) Icons / OG (checked-in assets) ———
 await cp('icons/icon-192.png', join(outdir, 'icons/icon-192.png'))
 await cp('icons/icon-512.png', join(outdir, 'icons/icon-512.png'))
 await cp('icons/icon-512.png', join(outdir, 'og.png'))
@@ -124,6 +125,26 @@ if (docMeta.length) {
   await writeFile(join(outdir, 'docs', 'index.html'), indexHtml)
 }
 
+// ——— 6) Embed pure editor PWA at ./app/ (same Pages artifact) ———
+// BASE for the app is site base + "app/" e.g. /handymd/app/
+const appBase = `${base}app/`
+const appOutAbs = resolve(process.cwd(), outdir, 'app')
+const appDir = resolve(import.meta.dir, '..', '..', 'app')
+const appBuild = Bun.spawnSync(['bun', 'run', 'scripts/build.ts'], {
+  cwd: appDir,
+  env: {
+    ...process.env,
+    BASE: appBase,
+    OUTDIR: appOutAbs,
+  },
+  stdout: 'inherit',
+  stderr: 'inherit',
+})
+if (appBuild.exitCode !== 0) {
+  console.error('site build: embedding apps/app failed')
+  process.exit(appBuild.exitCode ?? 1)
+}
+
 // Size report
 const sizes = await Promise.all(
   result.outputs.map(async (o) => {
@@ -141,6 +162,7 @@ console.log('  editor css: handymd.css (lazy with playground)')
 console.log('  js chunks:', sizes.map((s) => `${s.name} ${s.kb}KB`).join(', '))
 console.log('  total bundled JS+CSS:', `${totalKb} KB`)
 console.log('  docs:', docMeta.map((d) => d.slug).join(', '))
+console.log('  editor PWA:', `app/ (base=${appBase})`)
 
 // ——— Docs page template ———
 type DocPageInput = {
@@ -219,7 +241,8 @@ function renderDocPage(input: DocPageInput): string {
           <a href="../#features">特性</a>
           <a href="../#playground">试写</a>
           <a href="guide.html" class="is-active">文档</a>
-          <a href="../#install">安装</a>
+          <a href="../app/">编辑器</a>
+          <a href="../#install">接入 SDK</a>
         </nav>
         <span class="nav-spacer"></span>
         <a class="github-link" href="https://github.com/21stware/handymd" target="_blank" rel="noopener noreferrer">GitHub</a>

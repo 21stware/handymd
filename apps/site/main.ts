@@ -28,12 +28,10 @@ const editorMount = $('editor')
 const saveDot = $('save-dot')
 const fileNameEl = $('file-name')
 const fileMetaEl = $('file-meta')
-const btnInstall = $('btn-install')
 const codeContent = $('code-content')
 
 let playground: PlaygroundApi | null = null
 let playgroundPromise: Promise<PlaygroundApi> | null = null
-let deferredInstall: BeforeInstallPromptEvent | null = null
 
 // ——— Tiny toast ———
 let toastEl: HTMLDivElement | null = null
@@ -343,37 +341,8 @@ if (launchQueue && typeof launchQueue.setConsumer === 'function') {
   })
 }
 
-// ——— PWA install prompt ———
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
-}
-
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault()
-  deferredInstall = e as BeforeInstallPromptEvent
-  btnInstall?.removeAttribute('hidden')
-})
-
-btnInstall?.addEventListener('click', async () => {
-  if (!deferredInstall) {
-    toast('请使用浏览器菜单「安装应用」')
-    return
-  }
-  await deferredInstall.prompt()
-  const choice = await deferredInstall.userChoice
-  if (choice.outcome === 'accepted') toast('已安装 — 可用系统打开 .md')
-  deferredInstall = null
-  btnInstall?.setAttribute('hidden', '')
-})
-
-window.addEventListener('appinstalled', () => {
-  deferredInstall = null
-  btnInstall?.setAttribute('hidden', '')
-  toast('安装成功')
-})
-
-// Register service worker (needed for installability + offline shell)
+// Landing is not installable as an editor PWA (that lives at ./app/).
+// Optional site SW: offline shell for docs only; must not claim /app/*.
 if ('serviceWorker' in navigator) {
   if (location.protocol === 'https:' || location.hostname === 'localhost') {
     window.addEventListener('load', () => {

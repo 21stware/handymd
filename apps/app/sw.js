@@ -1,5 +1,5 @@
 /* handymd app — cache-first shell for installability & offline editing. */
-const CACHE = 'handymd-app-shell-v1'
+const CACHE = 'handymd-app-shell-v2'
 
 const PRECACHE = ['./', './index.html', './styles.css', './manifest.webmanifest', './favicon.svg']
 

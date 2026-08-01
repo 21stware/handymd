@@ -1,8 +1,11 @@
-/* handymd landing — cache-first shell for installability & offline open. */
-const CACHE = 'handymd-shell-v1'
+/* handymd landing — optional offline shell for docs/landing only.
+ * The installable Markdown editor PWA lives under ./app/ with its own SW.
+ * Do not intercept /app/* — leave those to the editor service worker.
+ */
+const CACHE = 'handymd-site-shell-v2'
 
-// Precache only the shell; hashed assets are cached on demand.
-const PRECACHE = ['./', './index.html', './styles.css', './docs.css', './manifest.webmanifest', './favicon.svg']
+// Precache only the site shell; hashed assets are cached on demand.
+const PRECACHE = ['./', './index.html', './styles.css', './docs.css', './favicon.svg']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -22,12 +25,18 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+function isEditorAppPath(url) {
+  // scope is typically /handymd/; editor is /handymd/app/
+  return /\/app(?:\/|$)/.test(url.pathname)
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request
   if (req.method !== 'GET') return
 
   const url = new URL(req.url)
   if (url.origin !== self.location.origin) return
+  if (isEditorAppPath(url)) return
 
   // Navigation: network-first, fall back to cached shell
   if (req.mode === 'navigate') {

@@ -12,7 +12,8 @@ apps/app          PWA Markdown 编辑器（可安装为 .md 打开器）
 apps/site         文档站（Landing + docs 渲染，部署到 GitHub Pages）
 ```
 
-**Landing / 在线试写：** https://21stware.github.io/handymd/
+**Landing / 在线试写：** https://21stware.github.io/handymd/  
+**纯编辑器 PWA（可安装 .md 打开器）：** https://21stware.github.io/handymd/app/
 
 ## 快速开始
 
@@ -97,8 +98,8 @@ bun install
 bun run test                 # SDK 单元测试（happy-dom）
 bun run typecheck            # 全 workspace 类型检查
 bun run build:sdk            # dist/（ESM + d.ts + style.css）
-bun run build:site           # 文档站静态产物（apps/site/dist）
-bun run build:app            # PWA 应用产物（apps/app/dist）
+bun run build:site           # 文档站 + 嵌入的编辑器 PWA（apps/site/dist，含 dist/app/）
+bun run build:app            # 单独构建纯编辑器（apps/app/dist；Pages 走 build:site 嵌入）
 bun run build                # 三个全部构建
 bun run e2e                  # SDK 端到端（需先启动一个编辑器宿主）
 ```

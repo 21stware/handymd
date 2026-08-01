@@ -807,7 +807,7 @@ code {
   .nav-actions .btn-ghost {
     display: none;
   }
-  #btn-install:not([hidden]) {
+  #btn-editor {
     display: inline-flex;
   }
   .paper-card {

@@ -24,7 +24,7 @@
 
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icons/icon-192.png" />
-    <link rel="manifest" href="manifest.webmanifest" />
+    <!-- Installable editor PWA lives at ./app/ (not this landing page). -->
 
     <!-- Critical first paint — warm paper, no FOUC -->
     <style>
@@ -91,7 +91,8 @@
           <a href="#features">特性</a>
           <a href="#playground">试写</a>
           <a href="docs/guide.html">文档</a>
-          <a href="#install">安装</a>
+          <a href="app/">编辑器</a>
+          <a href="#install">接入 SDK</a>
           <a
             href="https://github.com/21stware/handymd"
             target="_blank"
@@ -103,10 +104,10 @@
           <button type="button" class="btn btn-ghost" id="btn-open" title="打开 Markdown 文件">
             打开 .md
           </button>
-          <button type="button" class="btn btn-primary" id="btn-install" hidden>
-            安装应用
-          </button>
-          <a class="btn btn-primary" id="btn-try" href="#playground">开始书写</a>
+          <a class="btn btn-primary" id="btn-editor" href="app/" title="纯 Markdown 编辑器 PWA">
+            打开编辑器
+          </a>
+          <a class="btn btn-ghost" id="btn-try" href="#playground">试写</a>
         </div>
       </header>
 
@@ -223,7 +224,8 @@
         <div class="section-head">
           <h2>现在就写一段</h2>
           <p>
-            编辑器在需要时才加载。也可把 <code>.md</code> 拖进来，或安装 PWA 后用系统「打开方式」。
+            试写区按需加载。也可把 <code>.md</code> 拖进来；要装成系统打开器请用
+            <a href="app/">纯编辑器</a>。
           </p>
         </div>
 
@@ -265,9 +267,11 @@
         </div>
 
         <p class="playground-note" id="opener-note">
-          <strong>Markdown 打开器：</strong>
-          在 Chromium 浏览器中点击「安装应用」，即可把 handymd 注册为
-          <code>.md</code> 文件的打开方式。也可随时拖放文件到本页。
+          <strong>Markdown 编辑器应用：</strong>
+          打开
+          <a href="app/">纯编辑器 PWA</a>
+          ，在 Chromium 里安装后可把 handymd 注册为 <code>.md</code> 打开方式。
+          本页是文档与试写区，不会安装成独立应用。
         </p>
       </section>
 

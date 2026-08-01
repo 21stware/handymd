@@ -1,9 +1,9 @@
 /**
- * Build the handymd PWA app.
+ * Build the handymd PWA app (pure Markdown editor).
  *
  * Env:
  *   OUTDIR  output directory (default `dist`)
- *   BASE    public path prefix (default `/`)
+ *   BASE    public path prefix (default `/`; Pages nested deploy uses `/handymd/app/`)
  */
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
@@ -14,6 +14,7 @@ const base = baseRaw.endsWith('/') ? baseRaw : `${baseRaw}/`
 
 await rm(outdir, { recursive: true, force: true })
 await mkdir(join(outdir, 'icons'), { recursive: true })
+await mkdir(join(outdir, 'chunks'), { recursive: true })
 
 // ——— 1) Bundle app JS ———
 const result = await Bun.build({
@@ -61,7 +62,22 @@ for (const leftover of ['main.css']) {
 await cp('styles.css', join(outdir, 'styles.css'))
 await cp('favicon.svg', join(outdir, 'favicon.svg'))
 await cp('sw.js', join(outdir, 'sw.js'))
-await cp('manifest.webmanifest', join(outdir, 'manifest.webmanifest'))
+
+// Manifest: pin id/start_url/scope to the deploy BASE so nested Pages paths work.
+const manifest = JSON.parse(await readFile('manifest.webmanifest', 'utf8')) as {
+  id?: string
+  start_url?: string
+  scope?: string
+  file_handlers?: { action: string; accept: Record<string, string[]>; launch_type?: string }[]
+  [key: string]: unknown
+}
+manifest.id = base
+manifest.start_url = './'
+manifest.scope = './'
+if (Array.isArray(manifest.file_handlers)) {
+  for (const h of manifest.file_handlers) h.action = './'
+}
+await writeFile(join(outdir, 'manifest.webmanifest'), `${JSON.stringify(manifest, null, 2)}\n`)
 
 // ——— 3) PWA PNG icons (checked-in assets) ———
 await cp('icons/icon-192.png', join(outdir, 'icons/icon-192.png'))

@@ -31,7 +31,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build site
+      # Builds landing + docs, and embeds the pure editor PWA at dist/app/
+      - name: Build site (+ editor app)
         run: bun run build:site
         env:
           BASE_PATH: /handymd/
