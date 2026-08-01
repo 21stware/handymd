@@ -1,9 +1,12 @@
 /**
  * Lazy-loaded editor chunk. Intentionally does NOT import shiki —
  * keeps the playground bundle small for first interaction.
+ * Mermaid is pulled via dynamic import inside createMermaidRenderer,
+ * so it lands in a separate chunk after the playground mounts.
  */
-// Import editor entry only — never `src/index` (re-exports shiki helpers).
+// Import editor / diagram entries only — never `src/index` (re-exports shiki helpers).
 import { createEditor, type HandyEditor } from '../src/editor'
+import { createMermaidRenderer } from '../src/diagram'
 import '../src/style.css'
 import { SAMPLE_MARKDOWN } from './sample'
 
@@ -42,7 +45,8 @@ export async function mountPlayground(
   let fileName = 'welcome.md'
   let readOnly = false
 
-  const storageKey = 'handymd-landing-draft'
+  // bump when SAMPLE_MARKDOWN gains a showcase visitors should see by default
+  const storageKey = 'handymd-landing-draft-v2'
 
   const editor = createEditor({
     mount,
@@ -68,6 +72,8 @@ export async function mountPlayground(
       }
     },
     autosave: { debounceMs: 600 },
+    // Promise-accepted: mermaid chunk loads after first paint of the playground
+    diagram: createMermaidRenderer({ theme: 'neutral' }),
     onSaveStatusChange: (status) => hooks.onSaveStatus?.(status),
     onOpenLink: (href) => {
       window.open(href, '_blank', 'noopener,noreferrer')

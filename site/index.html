@@ -142,7 +142,7 @@
           <ul class="hero-meta">
             <li>IME 安全（中文拼音不闪烁）</li>
             <li>块级 Bear 手感</li>
-            <li>可安装为 .md 打开器</li>
+            <li>Mermaid Live Render</li>
           </ul>
         </div>
 
@@ -164,6 +164,10 @@
 
 <span class="tok-code">```ts</span>
 <span class="tok-code-body">conceal(doc, sel)</span>
+<span class="tok-code">```</span>
+
+<span class="tok-code">```mermaid</span>
+<span class="tok-code-body">A --&gt; B</span>
 <span class="tok-code">```</span></pre>
           </div>
           <div class="glow"></div>
@@ -204,8 +208,11 @@
           </article>
           <article class="feature">
             <div class="feature-icon" data-i="6"></div>
-            <h3>可选 shiki 高亮</h3>
-            <p>代码块高亮是 decoration，不改文档；不装 shiki 也能跑，体积由你决定。</p>
+            <h3>Diagram Live Render</h3>
+            <p>
+              <code>```mermaid</code> 在解析层就是 diagram block：光标离开渲染为图，
+              点击图表立刻回源码。可选 peer 依赖，不装也能当普通代码块用。
+            </p>
           </article>
         </div>
       </section>

@@ -6,14 +6,15 @@
 type PlaygroundApi = import('./playground').PlaygroundApi
 
 const SNIPPETS: Record<string, string> = {
-  bun: 'bun add @21stware/handymd',
-  npm: 'npm install @21stware/handymd',
-  code: `import { createEditor } from '@21stware/handymd'
+  bun: 'bun add @21stware/handymd\nbun add mermaid   # 可选：mermaid 图表',
+  npm: 'npm install @21stware/handymd\nnpm install mermaid   # optional: diagrams',
+  code: `import { createEditor, createMermaidRenderer } from '@21stware/handymd'
 import '@21stware/handymd/style.css'
 
 const editor = createEditor({
   mount: document.getElementById('editor')!,
   content: '# Hello handymd\\n',
+  diagram: createMermaidRenderer(), // 可选
 })`,
 }
 
