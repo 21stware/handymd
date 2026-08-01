@@ -17,7 +17,7 @@ const STRONG_RE = /(\*\*|__)(?!\s)([^\n]+?)(?<!\s)\1/g
 const STRIKE_RE = /~~(?!\s)([^~\n]+?)(?<!\s)~~/g
 const EM_STAR_RE = /(?<![A-Za-z0-9*\\])\*(?![\s*])([^*\n]+?)(?<!\s)\*(?![A-Za-z0-9*])/g
 const EM_UNDER_RE = /(?<![A-Za-z0-9_\\])_(?![\s_])([^_\n]+?)(?<!\s)_(?![A-Za-z0-9_])/g
-const TAG_RE = /(?<=^|[\s(（【"'])#([\p{L}\p{N}_][\p{L}\p{N}_\-/]*)/gu
+const TAG_RE = /(?<=^|[\s(（【"'：:，,、。;；])#([\p{L}\p{N}_][\p{L}\p{N}_\-/]*)/gu
 
 export function parseInline(text: string): RelElement[] {
   if (!text) return []

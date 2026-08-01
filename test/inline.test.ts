@@ -59,6 +59,11 @@ describe('parseInline', () => {
     expect(tag.to).toBe(15)
   })
 
+  test('tag after CJK punctuation', () => {
+    const els = parseInline('样式：#demo/handymd')
+    expect(els.filter((e) => e.kind === 'tag').length).toBe(1)
+  })
+
   test('multiplication is not emphasis', () => {
     expect(parseInline('2*3*4')).toEqual([])
   })

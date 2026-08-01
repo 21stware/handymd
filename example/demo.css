@@ -35,6 +35,7 @@ body {
 .pill-ready, .pill-clean { background: #e3efe3; color: #4e7a4e; }
 .pill-dirty, .pill-saving { background: #fdf0dc; color: #a97a2b; }
 .pill-error, .pill-offline, .pill-conflicted { background: #fbe3de; color: #b8433c; }
+.conflict[hidden] { display: none; }
 .conflict {
   padding: 10px 20px;
   background: #fbe3de;
