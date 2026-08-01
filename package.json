@@ -23,9 +23,11 @@
   "scripts": {
     "build": "bun run scripts/build.ts",
     "build:demo": "bun run scripts/build-demo.ts",
+    "build:site": "bun run scripts/build-demo.ts",
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "bun --hot example/index.html",
+    "dev:site": "bun --hot site/index.html",
     "e2e": "bun run scripts/e2e.ts",
     "prepublishOnly": "bun run typecheck && bun test && bun run build",
     "docs:check": "bun test && bun run typecheck"

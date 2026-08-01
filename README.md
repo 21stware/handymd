@@ -4,7 +4,14 @@ Bear 风格的**源码保真** Markdown 编辑器 SDK，基于 [ProseMirror](htt
 
 核心理念：**文档即 Markdown 源码 + 按光标位置选择性隐藏标记符**。没有富文本模型 —— 语义只存在于 decoration 层；每个元素在 `Concealed` / `Revealed` 之间由 selection 纯函数推导，不为元素存状态对象。
 
-**在线演示：** https://21stware.github.io/handymd/
+**Landing / 在线试写：** https://21stware.github.io/handymd/
+
+本地开发：
+
+```bash
+bun run dev:site   # Landing Page（GitHub Pages 同源）
+bun run dev        # 开发调试页 example/
+```
 
 ```bash
 bun add @21stware/handymd

@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>handymd — Bear 风格源码保真 Markdown 编辑器</title>
+    <meta
+      name="description"
+      content="文档即 Markdown 源码。标记符按光标位置选择性隐藏 —— 像 Bear 一样书写，像纯文本一样可移植。@21stware/handymd"
+    />
+    <meta name="theme-color" content="#f7f3eb" />
+    <meta name="color-scheme" content="light" />
+    <link rel="canonical" href="https://21stware.github.io/handymd/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="handymd — Bear 风格 Markdown 编辑器 SDK" />
+    <meta
+      property="og:description"
+      content="源码保真 · 光标驱动 conceal · 中文 IME 安全。把 Markdown 写进产品里。"
+    />
+    <meta property="og:url" content="https://21stware.github.io/handymd/" />
+    <meta property="og:image" content="https://21stware.github.io/handymd/og.png" />
+
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+
+    <!-- Critical first paint — warm paper, no FOUC -->
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f7f3eb;
+        --paper-deep: #efe8db;
+        --ink: #2c2823;
+        --ink-soft: #6b645a;
+        --ink-faint: #a89f92;
+        --line: #e4dccf;
+        --accent: #c9603c;
+        --accent-soft: rgba(201, 96, 60, 0.12);
+        --card: #fffdf8;
+        --shadow: 0 18px 50px rgba(44, 40, 35, 0.08);
+        --radius: 18px;
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--ink);
+        background:
+          radial-gradient(1200px 600px at 10% -10%, #fff8ec 0%, transparent 55%),
+          radial-gradient(900px 500px at 100% 0%, #f3e7d8 0%, transparent 50%),
+          var(--paper);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+      /* Prevent layout shift before full CSS loads */
+      .shell {
+        min-height: 100vh;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        border: 0;
+      }
+    </style>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#playground">跳到编辑器</a>
+
+    <div class="shell" id="app">
+      <!-- Top nav -->
+      <header class="nav" id="nav">
+        <a class="brand" href="./" aria-label="handymd home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-text">handymd</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="#features">特性</a>
+          <a href="#playground">试写</a>
+          <a href="#install">安装</a>
+          <a
+            href="https://github.com/21stware/handymd"
+            target="_blank"
+            rel="noopener noreferrer"
+            >GitHub</a
+          >
+        </nav>
+        <div class="nav-actions">
+          <button type="button" class="btn btn-ghost" id="btn-open" title="打开 Markdown 文件">
+            打开 .md
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-install" hidden>
+            安装应用
+          </button>
+          <a class="btn btn-primary" id="btn-try" href="#playground">开始书写</a>
+        </div>
+      </header>
+
+      <!-- Drop overlay for file open -->
+      <div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true">
+        <div class="drop-card">
+          <strong>放开以打开 Markdown</strong>
+          <span>支持 .md / .markdown / .txt</span>
+        </div>
+      </div>
+
+      <!-- Hero -->
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">@21stware/handymd · ProseMirror · Bun</p>
+          <h1>
+            文档即源码。<br />
+            <em>光标所在，标记显现。</em>
+          </h1>
+          <p class="lede">
+            Bear 风格的<strong>源码保真</strong> Markdown 编辑器 SDK。
+            没有第二套富文本模型 —— 每个标记符按 selection 选择性隐藏，
+            序列化永远是你写下的 Markdown。
+          </p>
+          <div class="hero-cta">
+            <a class="btn btn-primary btn-lg" href="#playground">在线试写</a>
+            <button type="button" class="btn btn-ghost btn-lg" id="btn-open-hero">
+              打开本地文件
+            </button>
+            <code class="install-chip" id="copy-install" title="点击复制">
+              bun add @21stware/handymd
+            </code>
+          </div>
+          <ul class="hero-meta">
+            <li>IME 安全（中文拼音不闪烁）</li>
+            <li>块级 Bear 手感</li>
+            <li>可安装为 .md 打开器</li>
+          </ul>
+        </div>
+
+        <div class="hero-visual" aria-hidden="true">
+          <div class="paper-card">
+            <div class="paper-toolbar">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="paper-title">note.md</span>
+            </div>
+            <pre class="paper-body"><span class="tok-h"># </span><span class="tok-strong">Morning pages</span>
+<span class="tok-dim">## 行内</span>
+写 <span class="tok-bold">**粗体**</span> 与 <span class="tok-em">*斜体*</span>，
+光标靠近才显露标记。
+
+<span class="tok-li">- [x]</span> 源码永远可移植
+<span class="tok-li">- [ ]</span> 单击链接直接打开
+
+<span class="tok-quote">&gt; </span><span class="tok-quote-body">引用前缀永久隐藏</span>
+
+<span class="tok-code">```ts</span>
+<span class="tok-code-body">conceal(doc, sel)</span>
+<span class="tok-code">```</span></pre>
+          </div>
+          <div class="glow"></div>
+        </div>
+      </section>
+
+      <!-- Features -->
+      <section class="section" id="features">
+        <div class="section-head">
+          <h2>为「写」而生，不是为「渲染」而生</h2>
+          <p>SDK 只做一件事：让 Markdown 在编辑时像 Bear，在磁盘上仍是纯文本。</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature">
+            <div class="feature-icon" data-i="1"></div>
+            <h3>源码保真</h3>
+            <p>文档模型就是 Markdown 源码。没有 AST 往返损耗，复制粘贴永远可预期。</p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" data-i="2"></div>
+            <h3>光标驱动 conceal</h3>
+            <p>标记符按 selection 纯函数隐藏 / 显现。不为元素存状态对象，Broken 即解散。</p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" data-i="3"></div>
+            <h3>中文 IME 安全</h3>
+            <p>composition 期间冻结迁移；拼音过程不闪烁，compositionend 后补一次全量重算。</p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" data-i="4"></div>
+            <h3>块级 Bear 手感</h3>
+            <p>列表 / 待办 / 引用 / 标题 gutter 图标 / 分隔线 —— 一旦渲染，前缀永久隐藏。</p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" data-i="5"></div>
+            <h3>生命周期完整</h3>
+            <p>Loading → Ready → Conflicted，防抖自动保存、远端冲突、只读模式开箱即用。</p>
+          </article>
+          <article class="feature">
+            <div class="feature-icon" data-i="6"></div>
+            <h3>可选 shiki 高亮</h3>
+            <p>代码块高亮是 decoration，不改文档；不装 shiki 也能跑，体积由你决定。</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Playground -->
+      <section class="section playground-section" id="playground">
+        <div class="section-head">
+          <h2>现在就写一段</h2>
+          <p>
+            编辑器在需要时才加载。也可把 <code>.md</code> 拖进来，或安装 PWA 后用系统「打开方式」。
+          </p>
+        </div>
+
+        <div class="editor-shell" id="editor-shell">
+          <div class="editor-bar">
+            <div class="editor-file">
+              <span class="file-dot" id="save-dot" data-status="clean"></span>
+              <span class="file-name" id="file-name">welcome.md</span>
+              <span class="file-meta" id="file-meta">示例文稿</span>
+            </div>
+            <div class="editor-actions">
+              <button type="button" class="btn btn-sm btn-ghost" id="btn-new" title="新建">
+                新建
+              </button>
+              <button type="button" class="btn btn-sm btn-ghost" id="btn-open-2">打开</button>
+              <button type="button" class="btn btn-sm btn-ghost" id="btn-save" title="保存到本机">
+                保存
+              </button>
+              <button type="button" class="btn btn-sm btn-ghost" id="btn-readonly">只读</button>
+              <button type="button" class="btn btn-sm btn-primary" id="btn-focus-editor">
+                聚焦
+              </button>
+            </div>
+          </div>
+
+          <div class="editor-stage" id="editor-stage">
+            <!-- Skeleton until editor chunk loads -->
+            <div class="editor-skeleton" id="editor-skeleton" aria-hidden="true">
+              <div class="sk sk-h"></div>
+              <div class="sk sk-p"></div>
+              <div class="sk sk-p short"></div>
+              <div class="sk sk-li"></div>
+              <div class="sk sk-li"></div>
+              <div class="sk sk-quote"></div>
+            </div>
+            <div id="editor" class="editor-mount" hidden></div>
+            <p class="editor-hint" id="editor-hint">滚动到此处或点击「开始书写」加载编辑器…</p>
+          </div>
+        </div>
+
+        <p class="playground-note" id="opener-note">
+          <strong>Markdown 打开器：</strong>
+          在 Chromium 浏览器中点击「安装应用」，即可把 handymd 注册为
+          <code>.md</code> 文件的打开方式。也可随时拖放文件到本页。
+        </p>
+      </section>
+
+      <!-- Install -->
+      <section class="section install-section" id="install">
+        <div class="section-head">
+          <h2>三行接入你的产品</h2>
+          <p>纯 ESM，浏览器端 SDK。样式独立入口，主题用 CSS 变量覆盖。</p>
+        </div>
+        <div class="code-panel">
+          <div class="code-tabs" role="tablist">
+            <button type="button" class="code-tab is-active" data-tab="bun" role="tab" aria-selected="true">
+              bun
+            </button>
+            <button type="button" class="code-tab" data-tab="npm" role="tab" aria-selected="false">
+              npm
+            </button>
+            <button type="button" class="code-tab" data-tab="code" role="tab" aria-selected="false">
+              code
+            </button>
+          </div>
+          <pre class="code-block" id="code-block" data-active="bun"><code id="code-content">bun add @21stware/handymd</code></pre>
+          <button type="button" class="btn btn-sm btn-ghost code-copy" id="btn-copy-code">
+            复制
+          </button>
+        </div>
+        <div class="install-links">
+          <a href="https://github.com/21stware/handymd#readme" target="_blank" rel="noopener"
+            >README</a
+          >
+          <a href="https://github.com/21stware/handymd/blob/main/docs/guide.md" target="_blank" rel="noopener"
+            >使用指南</a
+          >
+          <a href="https://github.com/21stware/handymd/blob/main/docs/api.md" target="_blank" rel="noopener"
+            >API</a
+          >
+          <a href="https://www.npmjs.com/package/@21stware/handymd" target="_blank" rel="noopener"
+            >npm</a
+          >
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div class="footer-brand">
+          <span class="brand-mark sm" aria-hidden="true"></span>
+          <span>handymd</span>
+        </div>
+        <p>MIT · Built with ProseMirror · by 21stware</p>
+        <a href="https://github.com/21stware/handymd" target="_blank" rel="noopener">GitHub</a>
+      </footer>
+    </div>
+
+    <!-- Hidden file input fallback -->
+    <input
+      type="file"
+      id="file-input"
+      class="sr-only"
+      accept=".md,.markdown,.mdown,.txt,text/markdown,text/plain"
+    />
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

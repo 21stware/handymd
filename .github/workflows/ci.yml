@@ -37,14 +37,14 @@ jobs:
       - name: Build library
         run: bun run build
 
-      - name: Build demo (static)
-        run: bun run build:demo
+      - name: Build landing site (static)
+        run: bun run build:site
         env:
           BASE_PATH: /handymd/
 
-      - name: Upload demo artifact
+      - name: Upload site artifact
         uses: actions/upload-artifact@v4
         with:
-          name: demo-site
+          name: landing-site
           path: example-dist/
           retention-days: 7
