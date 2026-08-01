@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@21stware/handymd — Bear 风格 Markdown 编辑器</title>
+    <script type="module" src="./main.ts"></script>
+  </head>
+  <body>
+    <header class="demo-bar">
+      <strong>@21stware/handymd</strong>
+      <span id="phase" class="pill">loading</span>
+      <span id="save" class="pill">clean</span>
+      <span class="spacer"></span>
+      <button id="toggle-readonly">切换只读</button>
+      <button id="simulate-remote">模拟远端变更</button>
+      <button id="flush">立即保存 (⌘S)</button>
+    </header>
+    <div id="conflict" class="conflict" hidden>
+      远端版本已变化且本地有未保存改动。
+      <button id="keep-local">保留本地</button>
+      <button id="keep-remote">采用远端</button>
+    </div>
+    <main id="editor"></main>
+  </body>
+</html>
