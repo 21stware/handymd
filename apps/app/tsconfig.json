@@ -7,5 +7,5 @@
       "@21stware/handymd/style.css": ["../../packages/handymd/src/style.css"]
     }
   },
-  "include": ["main.ts", "editor.ts", "scripts"]
+  "include": ["main.ts", "editor.ts", "settings.ts", "scripts"]
 }

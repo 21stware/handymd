@@ -4,6 +4,7 @@
  * Ops (wired by main.ts):
  *   open / save / save-as / new / drag-drop / OS file_handlers
  */
+import { TextSelection } from 'prosemirror-state'
 import { createEditor, type HandyEditor } from '@21stware/handymd'
 import '@21stware/handymd/style.css'
 
@@ -12,6 +13,8 @@ export type AppEditorApi = {
   openMarkdown: (md: string, meta: { name: string; handle?: FileSystemFileHandle | null }) => void
   getMarkdown: () => string
   focus: () => void
+  /** Place caret at end of document and focus (empty padding / bottom click). */
+  focusEnd: () => void
   setReadOnly: (v: boolean) => void
   getReadOnly: () => boolean
   saveToHandle: () => Promise<boolean>
@@ -143,6 +146,17 @@ export async function mountAppEditor(
     return saveAs()
   }
 
+  function focusEnd(): void {
+    const view = editor.view
+    if (!view) {
+      editor.focus()
+      return
+    }
+    const sel = TextSelection.atEnd(view.state.doc)
+    view.dispatch(view.state.tr.setSelection(sel))
+    view.focus()
+  }
+
   return {
     editor,
     openMarkdown(md, meta) {
@@ -158,6 +172,7 @@ export async function mountAppEditor(
     },
     getMarkdown: () => editor.getMarkdown(),
     focus: () => editor.focus(),
+    focusEnd,
     setReadOnly(v) {
       readOnly = v
       editor.setReadOnly(v)

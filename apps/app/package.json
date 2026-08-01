@@ -9,7 +9,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@21stware/handymd": "workspace:*"
+    "@21stware/handymd": "workspace:*",
+    "prosemirror-state": "^1.4.3"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",
