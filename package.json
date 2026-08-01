@@ -22,6 +22,7 @@
   ],
   "scripts": {
     "build": "bun run scripts/build.ts",
+    "build:demo": "bun run scripts/build-demo.ts",
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "bun --hot example/index.html",
@@ -68,7 +69,7 @@
     "type": "git",
     "url": "git+https://github.com/21stware/handymd.git"
   },
-  "homepage": "https://github.com/21stware/handymd#readme",
+  "homepage": "https://21stware.github.io/handymd/",
   "bugs": {
     "url": "https://github.com/21stware/handymd/issues"
   },
