@@ -49,6 +49,7 @@ import '@21stware/handymd/style.css'
 | `remoteConflict` | `string \| null` | 冲突中的远端文本 |
 | `getMarkdown()` | `() => string` | 序列化（无损） |
 | `setMarkdown(md, opts?)` | `(string, { addToHistory?: boolean }) => void` | 编程式替换 |
+| `insertTable(opts?)` | `(InsertTableOptions) => boolean` | 编程式插入 GFM 表格 |
 | `setReadOnly(v)` | `(boolean) => void` | 切换只读 |
 | `focus()` | `() => void` | 聚焦 |
 | `retry()` | `() => void` | `error → loading` 重试加载 |
@@ -144,6 +145,29 @@ toggleInline('**')  // Command
 
 ---
 
+## 表格（编程式）
+
+GFM 表格无输入触发；请用 `editor.insertTable()` 或 `insertTable` command。
+
+```ts
+import {
+  insertTable, buildTableMarkdown,
+  goToNextTableCell, goToPrevTableCell, continueTableRow,
+  parseTableRow, isTableSeparator,
+  type InsertTableOptions,
+} from '@21stware/handymd'
+
+editor.insertTable({ rows: 3, cols: 3, headers: ['A', 'B', 'C'] })
+buildTableMarkdown({ rows: 2, cols: 2 })
+// => "|  |  |\n| --- | --- |\n|  |  |"
+
+insertTable({ rows: 3, cols: 3 })(view.state, view.dispatch)
+```
+
+`InsertTableOptions`：`rows?`（含表头，默认 3）、`cols?`（默认 3）、`withHeaderRow?`（默认 true）、`headers?`。
+
+---
+
 ## 代码高亮
 
 ```ts
@@ -189,7 +213,7 @@ parseDoc(doc)                   // BlockMeta[]（绝对坐标 + 元素表）
 
 | 字段 | 说明 |
 |---|---|
-| `kind` | `strong \| em \| code \| strike \| mark \| link \| image \| tag \| heading \| quote \| todo \| bullet \| ordered \| hr \| fenceOpen \| fenceClose \| codeLine` |
+| `kind` | `strong \| em \| code \| strike \| mark \| link \| image \| tag \| heading \| quote \| todo \| bullet \| ordered \| hr \| fenceOpen \| fenceClose \| codeLine \| tableHeader \| tableSep \| tableRow \| tableCell` |
 | `scope` | `inline`（扩一格命中）/ `block`（块命中） |
 | `from` / `to` | 元素整体范围 |
 | `hitFrom` / `hitTo` | cursorEnter/Leave 判定区间 |
@@ -197,7 +221,7 @@ parseDoc(doc)                   // BlockMeta[]（绝对坐标 + 元素表）
 | `content` | 语义内容范围 |
 | `static` | 永不参与 reveal（tag / codeLine / ordered 序号样式） |
 | `permanent` | 永久 Concealed（quote / bullet / todo / hr） |
-| `attrs` | `level` / `checked` / `checkPos` / `href` / `alt` / `indent` / `num` / `info` |
+| `attrs` | `level` / `checked` / `checkPos` / `href` / `alt` / `indent` / `num` / `info` / `colCount` / `col` / `tableEdge` |
 
 > 标题**不**设 `permanent`：源码 `#` 在 decoration 层永远隐藏，但聚焦时要展示层级图标，因此参与 reveal 判定。
 
@@ -223,3 +247,4 @@ import '@21stware/handymd/style.css' // package exports: "./style.css"
 | `.hm-quote` / `.hm-todo` / `.hm-bullet` / `.hm-ordered` | 块级 |
 | `.hm-checkbox` / `.hm-bullet-dot` / `.hm-hr` / `.hm-image` | widgets |
 | `.hm-code-line` / `.hm-fence-line` / `.hm-code-lang` | 代码块 |
+| `.hm-table` / `.hm-table-header` / `.hm-table-row` / `.hm-table-cell` / `.hm-table-sep` | 表格 |

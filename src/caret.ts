@@ -32,7 +32,29 @@ export function permanentPrefixAt(
   for (const block of st.blocks) {
     if (block.pos !== blockPos) continue
     for (const el of block.elements) {
+      // 表格管道是离散 marker，不是单一前缀；仍返回元素供 Backspace 等使用
       if (isProtectedPrefix(el)) return { block, el }
+    }
+    return null
+  }
+  return null
+}
+
+/** 光标落在任一受保护 marker 内时，推到该 marker 之后（表格管道 / 前缀 / hr） */
+function escapeProtectedMarker(
+  state: EditorState,
+  blockPos: number,
+  pos: number,
+): number | null {
+  const st = concealKey.getState(state)
+  if (!st) return null
+  for (const block of st.blocks) {
+    if (block.pos !== blockPos) continue
+    for (const el of block.elements) {
+      if (!isProtectedPrefix(el)) continue
+      for (const m of el.markers) {
+        if (pos >= m.from && pos < m.to) return m.to
+      }
     }
     return null
   }
@@ -49,14 +71,9 @@ export function caretGuardPlugin(): Plugin {
       const $head = sel.$head
       if ($head.depth !== 1) return null
 
-      const hit = permanentPrefixAt(newState, $head.before())
-      if (!hit) return null
-      const m = hit.el.markers[0]
-      const pos = sel.from
-      if (pos < m.from || pos >= m.to) return null
-
-      // 推到前缀之后（内容起点；hr 的前缀即整行，等价于行尾）
-      return newState.tr.setSelection(TextSelection.create(newState.doc, m.to))
+      const next = escapeProtectedMarker(newState, $head.before(), sel.from)
+      if (next === null || next === sel.from) return null
+      return newState.tr.setSelection(TextSelection.create(newState.doc, next))
     },
   })
 }

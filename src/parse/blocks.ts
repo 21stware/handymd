@@ -1,7 +1,9 @@
 /**
  * 行级分类器：把每一行（= 一个 block 节点的 textContent）归入块级类型。
- * fence 是唯一带跨行状态的结构，在这里用一个小状态机处理；其余都是单行正则。
+ * fence / table 是带跨行状态的结构，用小状态机处理；其余都是单行正则。
  */
+
+import { isTableSeparator, looksLikeTableRow, parseTableRow } from './table'
 
 export type LineInfo =
   | { t: 'blank' }
@@ -15,6 +17,9 @@ export type LineInfo =
   | { t: 'fenceOpen'; tickStart: number; tickLen: number; info: string }
   | { t: 'fenceClose'; tickStart: number; tickLen: number }
   | { t: 'code' }
+  | { t: 'tableHeader'; colCount: number }
+  | { t: 'tableSep'; colCount: number }
+  | { t: 'tableRow'; colCount: number }
 
 export type LineType = LineInfo['t']
 
@@ -29,8 +34,12 @@ const ORDERED_RE = /^(\s*)(\d{1,9})[.)] /
 export function classifyLines(lines: readonly string[]): LineInfo[] {
   const out: LineInfo[] = []
   let fence: { char: string; len: number } | null = null
+  /** 表格状态：刚写出表头后等分隔行，或正在消费表体 */
+  let table: null | { phase: 'sep' | 'body'; colCount: number } = null
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+
     if (fence) {
       const m = line.match(FENCE_RE)
       if (m && m[2][0] === fence.char && m[2].length >= fence.len && !m[3].trim()) {
@@ -42,10 +51,38 @@ export function classifyLines(lines: readonly string[]): LineInfo[] {
       continue
     }
 
+    if (table?.phase === 'sep') {
+      out.push({ t: 'tableSep', colCount: table.colCount })
+      table = { phase: 'body', colCount: table.colCount }
+      continue
+    }
+
+    if (table?.phase === 'body') {
+      if (looksLikeTableRow(line) && !isTableSeparator(line)) {
+        out.push({ t: 'tableRow', colCount: table.colCount })
+        continue
+      }
+      table = null
+      // 非表体行：落入下方常规分类
+    }
+
     const open = line.match(FENCE_RE)
     if (open && !(open[2][0] === '`' && open[3].includes('`'))) {
       fence = { char: open[2][0], len: open[2].length }
       out.push({ t: 'fenceOpen', tickStart: open[1].length, tickLen: open[2].length, info: open[3].trim() })
+      continue
+    }
+
+    // GFM 表格：表头行 + 下一行分隔符。多行结构无法靠"输入触发"，
+    // 识别靠 look-ahead；创建请走 insertTable。
+    if (
+      looksLikeTableRow(line) &&
+      i + 1 < lines.length &&
+      isTableSeparator(lines[i + 1])
+    ) {
+      const colCount = Math.max(1, parseTableRow(lines[i + 1]).cells.length)
+      out.push({ t: 'tableHeader', colCount })
+      table = { phase: 'sep', colCount }
       continue
     }
 
