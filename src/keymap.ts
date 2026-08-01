@@ -2,14 +2,15 @@ import type { Command, EditorState, Transaction } from 'prosemirror-state'
 import { TextSelection } from 'prosemirror-state'
 import { keymap } from 'prosemirror-keymap'
 import type { Plugin } from 'prosemirror-state'
+import { schema } from './schema'
 import { concealKey } from './conceal/plugin'
 import { permanentPrefixAt } from './caret'
 import type { LineInfo } from './parse/blocks'
 
 /**
  * 源码模型下大部分 input rule 都是多余的 —— 输入 `## ` 本身就会被解析成标题。
- * 这里只保留真正需要"替用户打字/跳光标"的场景：列表续行、前缀退出、
- * 行内标记切换（Mod-b 等价于替你输入两对 `**`）、列表缩进。
+ * 这里只保留真正需要"替用户打字/跳光标"的场景：列表续行、标题行首回车、
+ * 前缀退出、行内标记切换、列表缩进。
  */
 
 function lineInfoAt(state: EditorState, blockPos: number): LineInfo | null {
@@ -36,14 +37,20 @@ function continuationPrefix(line: LineInfo, text: string): string | null {
     }
     case 'quote':
       return text.slice(0, line.prefixLen)
+    case 'heading':
+      return `${'#'.repeat(line.level)} `
     default:
       return null
   }
 }
 
 /**
- * Enter：列表/引用续行。空前缀行（只剩前缀没有内容）再回车 = 退出列表，
- * 与 Bear 一致。
+ * Enter：列表/引用/标题续行。
+ *
+ * 标题行首（光标在内容起点、行非空）特殊处理：在上方插入空行，
+ * `# Title` 整行保持标题 —— 避免默认 split 把 `# ` 留在上一行、正文变纯文本。
+ *
+ * 空前缀行再回车 = 退出块格式。
  */
 export const continueListItem: Command = (state, dispatch) => {
   const { $from, empty } = state.selection
@@ -58,12 +65,23 @@ export const continueListItem: Command = (state, dispatch) => {
 
   const prefixLen = (line as { prefixLen?: number }).prefixLen ?? 0
   const contentEmpty = text.slice(prefixLen).trim() === ''
+  const atContentStart = empty && $from.parentOffset === prefixLen
 
   if (empty && contentEmpty) {
-    // 前缀空行再回车 → 清空前缀，退出列表
+    // 前缀空行再回车 → 清空前缀，退出块格式
     if (dispatch) {
       const start = blockPos + 1
       dispatch(state.tr.delete(start, start + text.length).scrollIntoView())
+    }
+    return true
+  }
+
+  // 标题行首回车：上方插入空段落，当前行保持 `# Title`
+  if (line.t === 'heading' && atContentStart) {
+    if (dispatch) {
+      const tr = state.tr.insert(blockPos, schema.nodes.block.create())
+      tr.setSelection(TextSelection.create(tr.doc, blockPos + 1))
+      dispatch(tr.scrollIntoView())
     }
     return true
   }

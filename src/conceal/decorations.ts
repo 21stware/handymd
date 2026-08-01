@@ -34,6 +34,39 @@ function markerDecos(el: ElementRange, revealed: boolean, out: Decoration[]): vo
   }
 }
 
+/**
+ * 块级前缀隐藏：保留末尾一格为 caret-pad（透明、正常字号）。
+ * 光标落在内容起点时若紧挨 font-size:0 会看不见；垫一格透明空格可修复。
+ * 仅用于 heading / quote / bullet / todo，不用于行内 `**`。
+ */
+function concealMarkersWithCaretPad(el: ElementRange, out: Decoration[]): void {
+  for (const m of el.markers) {
+    if (m.from >= m.to) continue
+    if (m.to - m.from >= 2) {
+      out.push(
+        Decoration.inline(
+          m.from,
+          m.to - 1,
+          { class: 'hm-marker hm-concealed' },
+          spec(el, 'marker', true),
+        ),
+      )
+      out.push(
+        Decoration.inline(
+          m.to - 1,
+          m.to,
+          { class: 'hm-marker hm-caret-pad' },
+          spec(el, 'marker', true, { caretPad: true }),
+        ),
+      )
+    } else {
+      out.push(
+        Decoration.inline(m.from, m.to, { class: 'hm-marker hm-concealed' }, spec(el, 'marker', true)),
+      )
+    }
+  }
+}
+
 function contentDeco(
   el: ElementRange,
   revealed: boolean,
@@ -142,41 +175,11 @@ export function buildBlockDecos(block: BlockMeta, revealed: readonly boolean[]):
 
       case 'heading': {
         // `#`/`##` 源码永远隐藏；聚焦（rev）时在 gutter 展示层级图标（非源码）。
-        // 空标题（只有前缀）保留末尾空格为 caret-pad，避免 font-size:0 导致光标消失。
+        // 末尾空格做 caret-pad，避免内容起点光标紧贴 font-size:0 消失。
         const level = el.attrs?.level ?? 1
         const empty = !el.content || el.content.from >= el.content.to
         nodeDeco(block, el, rev, `hm-heading hm-h${level}${empty ? ' hm-heading-empty' : ''}`, out)
-        for (const m of el.markers) {
-          if (m.from >= m.to) continue
-          if (empty && m.to - m.from >= 2) {
-            // 隐藏 `#`/`##`，保留末尾空格给光标落脚
-            out.push(
-              Decoration.inline(
-                m.from,
-                m.to - 1,
-                { class: 'hm-marker hm-concealed' },
-                spec(el, 'marker', true),
-              ),
-            )
-            out.push(
-              Decoration.inline(
-                m.to - 1,
-                m.to,
-                { class: 'hm-marker hm-caret-pad' },
-                spec(el, 'marker', true, { caretPad: true }),
-              ),
-            )
-          } else {
-            out.push(
-              Decoration.inline(
-                m.from,
-                m.to,
-                { class: 'hm-marker hm-concealed' },
-                spec(el, 'marker', true),
-              ),
-            )
-          }
-        }
+        concealMarkersWithCaretPad(el, out)
         if (rev) {
           const at = el.markers[0].to
           widget(
@@ -205,13 +208,13 @@ export function buildBlockDecos(block: BlockMeta, revealed: readonly boolean[]):
 
       case 'quote':
         nodeDeco(block, el, rev, 'hm-quote', out)
-        markerDecos(el, rev, out)
+        concealMarkersWithCaretPad(el, out)
         break
 
       case 'todo': {
         const checked = el.attrs?.checked ?? false
         nodeDeco(block, el, rev, checked ? 'hm-todo hm-todo-checked' : 'hm-todo', out)
-        markerDecos(el, rev, out)
+        concealMarkersWithCaretPad(el, out)
         if (!rev) {
           const at = el.markers[0].from
           widget(
@@ -235,7 +238,7 @@ export function buildBlockDecos(block: BlockMeta, revealed: readonly boolean[]):
 
       case 'bullet':
         nodeDeco(block, el, rev, 'hm-bullet', out)
-        markerDecos(el, rev, out)
+        concealMarkersWithCaretPad(el, out)
         if (!rev) {
           const at = el.markers[0].from
           widget(

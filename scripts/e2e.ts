@@ -79,7 +79,8 @@ const lastChecked = await page.evaluate(() => {
 check('new checkbox is checked', lastChecked)
 // 光标就在该行内 —— 前缀依旧隐藏（永久渲染）
 const todoConcealedWhileEditing = await page.evaluate(() => {
-  const markers = [...document.querySelectorAll('.hm-todo .hm-marker')]
+  // caret-pad 是故意保留字号的透明空格，不算"源码揭示"
+  const markers = [...document.querySelectorAll('.hm-todo .hm-marker:not(.hm-caret-pad)')]
   return markers.length > 0 && markers.every((m) => m.classList.contains('hm-concealed'))
 })
 check('todo prefix never reveals while editing the line', todoConcealedWhileEditing)

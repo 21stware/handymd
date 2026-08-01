@@ -53,6 +53,30 @@ describe('markdown keymap', () => {
     expect(continueListItem(state, () => {})).toBe(false)
   })
 
+  test('Enter at heading content start keeps heading on the title line', () => {
+    // `# |Title` → 上方空行，`# Title` 保持标题（不会变成纯文本 Title）
+    const md = '# Title'
+    const state = mkState(md, 3) // 内容起点（块首 1 + '# '.length）
+    const next = run(state, continueListItem)
+    expect(docToMarkdown(next.doc)).toBe('\n# Title')
+    expect(next.selection.from).toBe(1) // 新空行内
+  })
+
+  test('Enter mid-heading splits into two headings of the same level', () => {
+    const md = '## HelloWorld'
+    // 内容 "HelloWorld"，在 Hello|World 处回车
+    const state = mkState(md, 1 + '## Hello'.length)
+    const next = run(state, continueListItem)
+    expect(docToMarkdown(next.doc)).toBe('## Hello\n## World')
+  })
+
+  test('Enter on empty heading exits heading format', () => {
+    const md = '## '
+    const state = mkState(md, 1 + md.length)
+    const next = run(state, continueListItem)
+    expect(docToMarkdown(next.doc)).toBe('')
+  })
+
   test('Mod-b wraps then unwraps', () => {
     const md = 'a bold c'
     let state = mkState(md)
