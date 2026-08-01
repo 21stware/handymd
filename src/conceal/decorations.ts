@@ -136,10 +136,35 @@ export function buildBlockDecos(block: BlockMeta, revealed: readonly boolean[]):
         contentDeco(el, false, 'hm-tag', out)
         break
 
-      case 'heading':
-        nodeDeco(block, el, rev, `hm-heading hm-h${el.attrs?.level ?? 1}`, out)
+      case 'heading': {
+        // permanent：`# ` 前缀永久隐藏，改用左侧 gutter 图标示意层级。
+        // 图标绝对定位在文本前侧，不挤占内容，标题行文本不会变动。
+        const level = el.attrs?.level ?? 1
+        nodeDeco(block, el, rev, `hm-heading hm-h${level}`, out)
         markerDecos(el, rev, out)
+        const at = el.markers[0].to
+        widget(
+          el,
+          at,
+          `hb:${at}:${level}`,
+          () => {
+            const badge = document.createElement('span')
+            badge.className = 'hm-heading-badge'
+            badge.setAttribute('aria-hidden', 'true')
+            badge.innerHTML =
+              `<svg viewBox="0 0 18 18" width="18" height="18">` +
+              `<rect x="1" y="3" width="16" height="2.4" rx="1.2" fill="currentColor"/>` +
+              `<rect x="1" y="8" width="7" height="2.4" rx="1.2" fill="currentColor"/>` +
+              `<rect x="1" y="13" width="7" height="2.4" rx="1.2" fill="currentColor"/>` +
+              `<text x="11" y="16" font-size="9.5" font-weight="700" fill="currentColor">${level}</text>` +
+              `</svg>`
+            return badge
+          },
+          out,
+          -1,
+        )
         break
+      }
 
       case 'quote':
         nodeDeco(block, el, rev, 'hm-quote', out)

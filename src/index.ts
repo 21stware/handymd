@@ -25,13 +25,20 @@ export { imePlugin } from './ime'
 export { interactionsPlugin } from './interactions'
 export type { InteractionOptions } from './interactions'
 export { normalizePlugin } from './normalize'
+export { caretGuardPlugin } from './caret'
 export {
   markdownKeymap,
   continueListItem,
   toggleInline,
   indentListItem,
   dedentListItem,
+  backspaceBlockFormat,
+  arrowLeftSkipPrefix,
 } from './keymap'
+
+// 代码高亮
+export { highlightPlugin, highlightKey, createShikiHighlighter } from './highlight'
+export type { CodeHighlighter, HighlightSpan, ShikiHighlighterOptions } from './highlight'
 
 // L4
 export { Autosave } from './autosave'

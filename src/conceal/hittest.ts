@@ -13,11 +13,12 @@ export interface SelLike {
  *   Revealed --cursorLeave--> Concealed : selection 完全离开（且非 composition 中，
  *                                          composition 冻结在 plugin.apply 层实现）
  *
- * inline 元素的 hit 区间是 [from-1, to+1]（扩一格判定）；block 元素是所在块；
- * fence 是整个代码块区域；static 元素永远不 reveal；readOnly 强制全部 Concealed。
+ * inline 元素的 hit 区间是 [from-1, to+1]（扩一格判定）；fence 是整个代码块
+ * 区域；static / permanent 元素永远不 reveal（块级前缀一旦渲染就不再回到
+ * 源码 —— Bear 的手感）；readOnly 强制全部 Concealed。
  */
 export function isRevealed(el: ElementRange, sel: SelLike, readOnly: boolean): boolean {
-  if (el.static) return false
+  if (el.static || el.permanent) return false
   if (readOnly) return false
   return spansIntersect(sel.from, sel.to, el.hitFrom, el.hitTo)
 }

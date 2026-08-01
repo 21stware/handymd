@@ -37,19 +37,68 @@ const opened = () => page.evaluate(() => (window as unknown as { __opened: strin
 const domAnchor = () =>
   page.evaluate(() => window.getSelection()?.anchorNode?.textContent ?? 'none')
 
-const link = page.locator('.hm-link').first()
-const box = (await link.boundingBox())!
-const cx = box.x + box.width / 2
-const cy = box.y + box.height / 2
-
-// —— 1. 标题 conceal/reveal ——
+// —— 1. 标题：前缀永久隐藏 + 左侧层级图标 ——
 const h1 = page.locator('.hm-h1').first()
 await h1.click()
 await page.waitForTimeout(100)
-const headingRevealed = await page.evaluate(
-  () => !!document.querySelector('.hm-h1 .hm-marker:not(.hm-concealed)'),
+const headingStaysConcealed = await page.evaluate(
+  () => !document.querySelector('.hm-h1 .hm-marker:not(.hm-concealed)'),
 )
-check('cursor in heading reveals "# "', headingRevealed)
+check('heading "# " stays concealed even with cursor inside', headingStaysConcealed)
+check(
+  'heading level badge rendered in gutter',
+  (await page.locator('.hm-heading-badge').count()) > 0,
+  String(await page.locator('.hm-heading-badge').count()),
+)
+
+// —— 1b. 输入 "- " 立即渲染 bullet、补 "[ ] " 变 checkbox、hr 立即渲染 ——
+await page.keyboard.press('Control+End')
+await page.keyboard.press('End')
+await page.keyboard.press('Enter')
+await page.keyboard.type('- ')
+await page.waitForTimeout(150)
+const dotCount = await page.locator('.hm-bullet-dot').count()
+check('typing "- " renders bullet immediately', dotCount >= 1, `dots=${dotCount}`)
+const checkboxesBefore = await page.locator('input.hm-checkbox').count()
+await page.keyboard.type('[x] done')
+await page.waitForTimeout(150)
+const checkboxesAfter = await page.locator('input.hm-checkbox').count()
+check('typing "[x] " upgrades bullet to checked box', checkboxesAfter === checkboxesBefore + 1)
+const lastChecked = await page.evaluate(() => {
+  const boxes = document.querySelectorAll('input.hm-checkbox')
+  return (boxes[boxes.length - 1] as HTMLInputElement | undefined)?.checked ?? false
+})
+check('new checkbox is checked', lastChecked)
+// 光标就在该行内 —— 前缀依旧隐藏（永久渲染）
+const todoConcealedWhileEditing = await page.evaluate(() => {
+  const markers = [...document.querySelectorAll('.hm-todo .hm-marker')]
+  return markers.length > 0 && markers.every((m) => m.classList.contains('hm-concealed'))
+})
+check('todo prefix never reveals while editing the line', todoConcealedWhileEditing)
+// 清理这一行（Backspace 去格式 + 删除内容）
+await page.keyboard.press('End')
+for (let i = 0; i < 'done'.length; i++) await page.keyboard.press('Backspace')
+await page.keyboard.press('Backspace') // 去格式
+await page.keyboard.press('Backspace') // 并回上一行
+await page.waitForTimeout(100)
+
+// —— 1c. shiki 高亮 ——
+await page
+  .waitForSelector('.hm-code-line span[style*="color"]', { timeout: 10_000 })
+  .catch(() => {})
+const colored = await page.evaluate(
+  () => document.querySelectorAll('.hm-code-line span[style*="color"]').length,
+)
+check('shiki highlights code tokens', colored > 0, `colored spans=${colored}`)
+
+// 先把光标放回标题（同时把页面滚回顶部），再测量链接的视口坐标
+await page.locator('.hm-h1').first().click()
+await page.waitForTimeout(100)
+const link = page.locator('.hm-link').first()
+await link.scrollIntoViewIfNeeded()
+const box = (await link.boundingBox())!
+const cx = box.x + box.width / 2
+const cy = box.y + box.height / 2
 
 // —— 2. Concealed 链接单击 = 打开且不移动光标 ——
 await page.mouse.click(cx, cy)

@@ -76,6 +76,7 @@ export function parseDoc(doc: PMNode): BlockMeta[] {
         els.push({
           kind: 'heading',
           scope: 'block',
+          permanent: true,
           from: pos,
           to: pos + size,
           ...blockHit,
@@ -90,6 +91,7 @@ export function parseDoc(doc: PMNode): BlockMeta[] {
         els.push({
           kind: 'quote',
           scope: 'block',
+          permanent: true,
           from: pos,
           to: pos + size,
           ...blockHit,
@@ -103,6 +105,7 @@ export function parseDoc(doc: PMNode): BlockMeta[] {
         els.push({
           kind: 'todo',
           scope: 'block',
+          permanent: true,
           from: pos,
           to: pos + size,
           ...blockHit,
@@ -121,6 +124,7 @@ export function parseDoc(doc: PMNode): BlockMeta[] {
         els.push({
           kind: 'bullet',
           scope: 'block',
+          permanent: true,
           from: pos,
           to: pos + size,
           ...blockHit,
@@ -151,6 +155,7 @@ export function parseDoc(doc: PMNode): BlockMeta[] {
         els.push({
           kind: 'hr',
           scope: 'block',
+          permanent: true,
           from: pos,
           to: pos + size,
           ...blockHit,

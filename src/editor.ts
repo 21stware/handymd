@@ -11,6 +11,8 @@ import { imePlugin } from './ime'
 import { interactionsPlugin } from './interactions'
 import { markdownKeymap } from './keymap'
 import { normalizePlugin } from './normalize'
+import { caretGuardPlugin } from './caret'
+import { highlightPlugin, type CodeHighlighter } from './highlight'
 import { Autosave, type AutosaveOptions, type SaveStatus } from './autosave'
 
 /**
@@ -50,6 +52,11 @@ export interface HandyEditorOptions {
   history?: boolean
   /** 是否启用有序列表自动重编号，默认 true */
   normalizeOrderedLists?: boolean
+  /**
+   * 代码块语法高亮器（推荐 `createShikiHighlighter()`，接受 Promise，
+   * resolve 前先渲染无高亮版本）
+   */
+  highlight?: CodeHighlighter | Promise<CodeHighlighter>
 }
 
 type EventMap = {
@@ -134,8 +141,10 @@ export class HandyEditor {
       concealPlugin({ readOnly: this.readOnlyValue }),
       imePlugin(),
       interactionsPlugin({ onOpenLink: this.opts.onOpenLink }),
+      caretGuardPlugin(),
       markdownKeymap(),
     ]
+    if (this.opts.highlight) plugins.push(highlightPlugin(this.opts.highlight))
     if (this.opts.history !== false) {
       plugins.push(history())
       plugins.push(

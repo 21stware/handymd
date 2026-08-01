@@ -71,6 +71,12 @@ export interface ElementRange {
    * ordered 序号的弱化样式、#tag 的 pill），永远不参与 reveal 判定。
    */
   static?: boolean
+  /**
+   * permanent 元素永久 Concealed（Bear 的块级手感）：hr / bullet / quote /
+   * todo / heading 一旦解析立即渲染，光标进入也不回到源码。标记符仍然
+   * 存在于源码中（序列化无损），只是永远不显示。
+   */
+  permanent?: boolean
 }
 
 /** 相对坐标版本（供行内解析缓存复用，base=0），结构与 ElementRange 相同。 */

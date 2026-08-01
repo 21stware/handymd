@@ -32,12 +32,15 @@ function findDecos(state: EditorState, pred: (spec: Spec) => boolean) {
 const MD = '# Title\n\npara **bold** tail'
 
 describe('conceal/reveal state machine (L3)', () => {
-  test('cursor inside heading block reveals heading markers (block granularity)', () => {
-    // 初始 selection 在文档头 → 位于第一个块内 → heading Revealed
+  test('heading prefix is permanently concealed, level badge widget instead', () => {
+    // 初始 selection 在第一个块内 —— 即便光标在块里，`# ` 也不回源码（Bear 手感）
     const state = mkState(MD)
     const markers = findDecos(state, (s) => s.kind === 'heading' && s.role === 'marker')
     expect(markers.length).toBe(1)
-    expect((markers[0].spec as Spec).concealed).toBe(false)
+    expect((markers[0].spec as Spec).concealed).toBe(true)
+    // 层级图标 widget 永久存在
+    const badges = findDecos(state, (s) => s.kind === 'heading' && s.role === 'widget')
+    expect(badges.length).toBe(1)
   })
 
   test('cursor elsewhere conceals heading and strong', () => {
@@ -71,12 +74,14 @@ describe('conceal/reveal state machine (L3)', () => {
     expect(strong.every((d) => (d.spec as Spec).concealed)).toBe(true)
   })
 
-  test('select-all reveals everything', () => {
+  test('select-all reveals inline markers; permanent block prefixes stay concealed', () => {
     let state = mkState(MD)
     state = state.apply(state.tr.setSelection(new AllSelection(state.doc)))
-    const markers = findDecos(state, (s) => s.role === 'marker')
-    expect(markers.length).toBeGreaterThan(0)
-    expect(markers.every((d) => !(d.spec as Spec).concealed)).toBe(true)
+    const inline = findDecos(state, (s) => s.kind === 'strong' && s.role === 'marker')
+    expect(inline.length).toBe(2)
+    expect(inline.every((d) => !(d.spec as Spec).concealed)).toBe(true)
+    const heading = findDecos(state, (s) => s.kind === 'heading' && s.role === 'marker')
+    expect(heading.every((d) => (d.spec as Spec).concealed)).toBe(true)
   })
 
   test('selection-only move with unchanged result reuses plugin state object', () => {
@@ -140,15 +145,33 @@ describe('conceal/reveal state machine (L3)', () => {
     expect(findDecos(state, (s) => s.kind === 'codeLine').length).toBe(1)
   })
 
-  test('todo renders checkbox widget when concealed', () => {
+  test('todo checkbox widget is permanent (cursor in block does not reveal source)', () => {
     const md = '- [x] done\n\ncursor here'
     let state = mkState(md)
     state = setCursor(state, posOf(md, 'cursor'))
-    const widgets = findDecos(state, (s) => s.kind === 'todo' && s.role === 'widget')
-    expect(widgets.length).toBe(1)
-    // Revealed 后 widget 消失，标记符可见
+    expect(findDecos(state, (s) => s.kind === 'todo' && s.role === 'widget').length).toBe(1)
+    // 光标进入该行：widget 仍在，`- [x] ` 前缀仍然隐藏
     state = setCursor(state, posOf(md, 'done'))
-    expect(findDecos(state, (s) => s.kind === 'todo' && s.role === 'widget').length).toBe(0)
+    expect(findDecos(state, (s) => s.kind === 'todo' && s.role === 'widget').length).toBe(1)
+    const markers = findDecos(state, (s) => s.kind === 'todo' && s.role === 'marker')
+    expect(markers.every((d) => (d.spec as Spec).concealed)).toBe(true)
+  })
+
+  test('bullet / quote / hr are permanently rendered', () => {
+    const md = '- task\n> quoted\n---'
+    let state = mkState(md)
+    // 光标逐个放进这三行，前缀都不回源码
+    for (const needle of ['task', 'quoted']) {
+      state = setCursor(state, posOf(md, needle))
+      const markers = findDecos(state, (s) =>
+        ['bullet', 'quote', 'hr'].includes(s.kind) && s.role === 'marker',
+      )
+      expect(markers.length).toBeGreaterThan(0)
+      expect(markers.every((d) => (d.spec as Spec).concealed)).toBe(true)
+    }
+    // bullet 圆点与 hr 线是永久 widget
+    expect(findDecos(state, (s) => s.kind === 'bullet' && s.role === 'widget').length).toBe(1)
+    expect(findDecos(state, (s) => s.kind === 'hr' && s.role === 'widget').length).toBe(1)
   })
 
   test('doc edit reparses affected content', () => {

@@ -54,15 +54,49 @@ editor.resolveConflict('remote') // 采用远端，标记 clean
 
 ## 体验细节（复刻 Bear 手感）
 
+**行内元素（conceal ⇄ reveal，selection 驱动）**
+
 - **扩一格判定**：光标停在 `**bold**` 的紧邻外侧（`[from-1, to+1]`）即 Reveal，从右侧退格进入不闪。
 - **IME 安全**：中文输入法 composition 期间冻结一切 conceal/reveal 迁移，decoration 只做位置映射；`compositionend` 后补一次全量重算。拼音过程不闪烁。
 - **Concealed 链接单击是"打开"**：mousedown 拦截、不移动光标；Cmd/Ctrl+点击或键盘移入才进入编辑。
 - **Broken 零成本解散**：Revealed 态删掉一个 `*`，元素立即降级为纯文本 —— 文档本来就是源码，"解散"只是 decoration 消失。
-- **代码块例外**：内部永远是源码（不解析行内元素），只有 ``` 围栏行参与 conceal；光标在代码块内任意位置时两条围栏行都保持 Revealed。
-- **checkbox / 图片 / 分隔线**：Concealed 态渲染为 `Decoration.widget` DOM 岛，checkbox 点击直接改写源码 `[ ]` ↔ `[x]`，不动光标。
+
+**块级元素（permanent：一旦渲染，不回源码）**
+
+- 输入 `- ` 立即变 bullet；补 `[ ] ` 变 unchecked box；`- [x] ` 是 checked box —— 一旦渲染，光标进入该行也**不会**回到 `- [ ]` 源码展示。前缀仍在源码中（序列化无损），只是永久隐藏。
+- **标题不显示 `#`/`##`**：层级用左侧 gutter 的多级图标示意（绝对定位在文本前侧，不挤占标题行文本）。
+- **分隔线立即渲染**为 `<hr>`，没有"选中回源码"状态；退格整体删除。
+- **引用块**渲染后保持左边线样式，`> ` 前缀永久隐藏。
+- **光标保护**：折叠光标永远进不了隐藏前缀（点击行首 / Home / 跨行移动都会被推到内容起点）；内容起点 Backspace 一次去掉该行格式（变回普通段落），ArrowLeft 直接跳上一行行尾。
+- **代码块例外**：内部永远是源码（不解析行内元素），只有 ``` 围栏行参与 conceal/reveal；光标在代码块内任意位置时两条围栏行保持 Revealed。
+
+**通用**
+
+- **checkbox / 图片 / 分隔线 / 标题图标 / 语言徽标**：`Decoration.widget` DOM 岛，checkbox 点击直接改写源码 `[ ]` ↔ `[x]`，不动光标。
 - **标记隐藏用 `font-size: 0`** 而非 `display: none`，光标测量与点击定位保持正确。
 - **有序列表自动重编号**：`appendTransaction` 规范化，run 首项保留用户起始值，之后逐一递增；不进 undo history。
 - **回车续行**：列表/待办/引用自动携带前缀，空前缀行再回车退出列表。
+
+## 代码高亮（shiki）
+
+`shiki` 是可选依赖，动态 import，不装不打包：
+
+```bash
+bun add shiki
+```
+
+```ts
+import { createEditor, createShikiHighlighter } from 'handymd'
+
+const editor = createEditor({
+  mount,
+  content,
+  // 接受 Promise —— shiki 加载完成前先渲染无高亮版本，resolve 后自动刷新
+  highlight: createShikiHighlighter({ theme: 'github-light', langs: ['ts', 'python'] }),
+})
+```
+
+也可以接任何高亮器：实现 `CodeHighlighter`（`(code, lang) => HighlightSpan[][]`，逐行 token 数组，可异步）即可。高亮结果按 `(lang, code)` 缓存，永远只是 decoration，不改文档。
 
 ## 四层状态机 → 代码映射
 
@@ -143,7 +177,7 @@ docToMarkdown(view.state.doc) // ← 永远是干净的 markdown
 
 ```bash
 bun install
-bun test            # 48 个测试：解析 / L3 状态机 / L4 状态机 / L1 生命周期
+bun test            # 62 个测试：解析 / L3 状态机 / L4 状态机 / L1 生命周期 / 光标保护 / 高亮
 bun run typecheck
 bun run build       # dist/（ESM + d.ts + style.css）
 bun run dev         # 启动 example/ 演示应用
@@ -152,9 +186,9 @@ bun run e2e         # 真实 Chromium 交互验证（需先 bun run dev + bunx p
 
 ## 支持的 Markdown 语法
 
-行内：`**strong**`、`*em*`、`` `code` ``、`~~strike~~`、`[link](url)`、`![image](url)`、`#tag`（Bear 风格，永远 pill 展示）。
+行内（conceal ⇄ reveal）：`**strong**`、`*em*`、`` `code` ``、`~~strike~~`、`[link](url)`、`![image](url)`、`#tag`（Bear 风格，永远 pill 展示）。
 
-块级：`# 标题`（1-6 级）、`> 引用`、`- [ ] 待办`、`- 无序列表`、`1. 有序列表`、`---` 分隔线、``` 代码块围栏。
+块级（permanent 渲染）：`# 标题`（1-6 级，左侧层级图标）、`> 引用`、`- [ ] 待办`、`- 无序列表`、`1. 有序列表`、`---` 分隔线、``` 代码块围栏（可选 shiki 高亮）。
 
 ## License
 

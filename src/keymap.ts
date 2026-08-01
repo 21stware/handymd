@@ -3,6 +3,7 @@ import { TextSelection } from 'prosemirror-state'
 import { keymap } from 'prosemirror-keymap'
 import type { Plugin } from 'prosemirror-state'
 import { concealKey } from './conceal/plugin'
+import { permanentPrefixAt } from './caret'
 import type { LineInfo } from './parse/blocks'
 
 /**
@@ -125,6 +126,46 @@ export function toggleInline(marker: string): Command {
   }
 }
 
+/**
+ * Backspace 在 permanent 前缀的内容起点：删除整个隐藏前缀（= 关闭该行格式，
+ * 与 Bear 一致 —— 列表/引用/标题/待办退格一次变回普通段落）。
+ * hr 行：整行删除（分隔线是一个对象，退格整体移除）。
+ */
+export const backspaceBlockFormat: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection
+  if (!empty || $from.depth !== 1) return false
+  const hit = permanentPrefixAt(state, $from.before())
+  if (!hit) return false
+  const m = hit.el.markers[0]
+
+  if (hit.el.kind === 'hr') {
+    if (dispatch) {
+      dispatch(state.tr.delete(hit.block.pos + 1, hit.block.pos + 1 + hit.block.text.length))
+    }
+    return true
+  }
+  if ($from.pos !== m.to) return false
+  if (dispatch) dispatch(state.tr.delete(m.from, m.to))
+  return true
+}
+
+/**
+ * ArrowLeft 在 permanent 前缀的内容起点：跳到上一行行尾（隐藏前缀不可进入）。
+ */
+export const arrowLeftSkipPrefix: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection
+  if (!empty || $from.depth !== 1) return false
+  const hit = permanentPrefixAt(state, $from.before())
+  if (!hit) return false
+  const m = hit.el.markers[0]
+  if ($from.pos !== m.to) return false
+  if (hit.block.pos === 0) return true // 首行：原地不动，不进隐藏区
+  if (dispatch) {
+    dispatch(state.tr.setSelection(TextSelection.create(state.doc, hit.block.pos - 1)))
+  }
+  return true
+}
+
 const INDENT = '  '
 
 export const indentListItem: Command = (state, dispatch) => {
@@ -151,6 +192,8 @@ export const dedentListItem: Command = (state, dispatch) => {
 export function markdownKeymap(): Plugin {
   return keymap({
     Enter: continueListItem,
+    Backspace: backspaceBlockFormat,
+    ArrowLeft: arrowLeftSkipPrefix,
     'Mod-b': toggleInline('**'),
     'Mod-i': toggleInline('*'),
     'Mod-e': toggleInline('`'),

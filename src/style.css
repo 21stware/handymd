@@ -26,7 +26,8 @@
   line-height: 1.75;
   outline: none;
   caret-color: var(--hm-accent);
-  padding: 24px 28px;
+  /* 左侧留出标题层级图标的 gutter */
+  padding: 24px 32px 24px 52px;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
@@ -100,6 +101,25 @@
   font-weight: 700;
   line-height: 1.4;
   margin: 0.45em 0 0.15em;
+  position: relative;
+}
+
+/* 标题层级图标：绝对定位在文本前侧 gutter，不挤占标题行文本 */
+.handymd .hm-heading-badge {
+  position: absolute;
+  left: -34px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--hm-marker);
+  font-size: 16px;
+  line-height: 1;
+  user-select: none;
+  pointer-events: none;
+}
+.handymd .hm-heading-badge svg {
+  display: block;
 }
 .handymd .hm-h1 { font-size: 1.7em; }
 .handymd .hm-h2 { font-size: 1.42em; }

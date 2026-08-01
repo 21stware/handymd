@@ -17,6 +17,7 @@ const result = await Bun.build({
     'prosemirror-keymap',
     'prosemirror-commands',
     'prosemirror-history',
+    'shiki',
   ],
 })
 
