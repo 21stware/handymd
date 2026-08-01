@@ -2,9 +2,10 @@ import type { EditorState, Transaction } from 'prosemirror-state'
 import { Plugin, PluginKey } from 'prosemirror-state'
 import type { Node as PMNode } from 'prosemirror-model'
 import { Decoration, DecorationSet } from 'prosemirror-view'
+import type { DiagramRenderCallback } from '../diagram'
 import { parseDoc, type BlockMeta } from '../parse/docparse'
 import { isRevealed, revealSignature, type SelLike } from './hittest'
-import { buildBlockDecos } from './decorations'
+import { buildBlockDecos, type DecorationContext } from './decorations'
 
 /**
  * L3 conceal/reveal 状态机的宿主插件，同时承担 L2 管线的 Reconciling 阶段：
@@ -49,6 +50,7 @@ function computeAll(
   sel: SelLike,
   readOnly: boolean,
   composing: boolean,
+  ctx: DecorationContext,
 ): ConcealState {
   const blocks = parseDoc(doc)
   const sigs: string[] = []
@@ -56,7 +58,7 @@ function computeAll(
   const all: Decoration[] = []
   for (const block of blocks) {
     const revealed = block.elements.map((el) => isRevealed(el, sel, readOnly))
-    const decos = buildBlockDecos(block, revealed)
+    const decos = buildBlockDecos(block, revealed, ctx)
     sigs.push(revealSignature(revealed))
     decoLists.push(decos)
     for (const d of decos) all.push(d)
@@ -74,15 +76,23 @@ function computeAll(
 
 export interface ConcealOptions {
   readOnly?: boolean
+  /**
+   * diagram block（如 ```mermaid）在 Concealed 态的渲染回调
+   * （见 diagram.ts 的 createDiagramRenderCallback）。缺省时 diagram
+   * block 按普通 code block 呈现。
+   */
+  renderDiagram?: DiagramRenderCallback
 }
 
 export function concealPlugin(options: ConcealOptions = {}): Plugin<ConcealState> {
+  const ctx: DecorationContext = { renderDiagram: options.renderDiagram }
+
   return new Plugin<ConcealState>({
     key: concealKey,
 
     state: {
       init: (_config, state: EditorState) =>
-        computeAll(state.doc, state.selection, options.readOnly ?? false, false),
+        computeAll(state.doc, state.selection, options.readOnly ?? false, false, ctx),
 
       apply: (tr: Transaction, prev: ConcealState, old: EditorState, next: EditorState) => {
         let { composing, readOnly } = prev
@@ -114,7 +124,7 @@ export function concealPlugin(options: ConcealOptions = {}): Plugin<ConcealState
 
         // —— 文档变化 / 解冻 / 配置变化：全量重算（行内解析有文本缓存兜底） ——
         if (tr.docChanged || prev.stale || refresh) {
-          return computeAll(next.doc, next.selection, readOnly, composing)
+          return computeAll(next.doc, next.selection, readOnly, composing, ctx)
         }
 
         // —— 纯 selection 移动：只有判定结果变化的块才重建 decoration ——
@@ -136,7 +146,7 @@ export function concealPlugin(options: ConcealOptions = {}): Plugin<ConcealState
           const decoLists: Decoration[][] = new Array(prev.blocks.length)
           const all: Decoration[] = []
           for (let i = 0; i < prev.blocks.length; i++) {
-            const list = revs[i] ? buildBlockDecos(prev.blocks[i], revs[i]!) : prev.decoLists[i]
+            const list = revs[i] ? buildBlockDecos(prev.blocks[i], revs[i]!, ctx) : prev.decoLists[i]
             decoLists[i] = list
             for (const d of list) all.push(d)
           }

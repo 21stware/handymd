@@ -22,7 +22,7 @@ npm install @21stware/handymd
 ## 快速开始
 
 ```ts
-import { createEditor, createShikiHighlighter } from '@21stware/handymd'
+import { createEditor, createMermaidRenderer, createShikiHighlighter } from '@21stware/handymd'
 import '@21stware/handymd/style.css'
 
 const editor = createEditor({
@@ -31,6 +31,7 @@ const editor = createEditor({
   save: (markdown) => fetch('/api/note/42', { method: 'PUT', body: markdown }),
   autosave: { debounceMs: 800 },
   highlight: createShikiHighlighter({ theme: 'github-light' }), // 可选，需安装 shiki
+  diagram: createMermaidRenderer(),                              // 可选，需安装 mermaid
   onPhaseChange: (phase) => console.log('L1:', phase),
   onSaveStatusChange: (status) => console.log('L4:', status),
 })
@@ -66,10 +67,16 @@ await editor.destroy()
 - 标题：源码 `#`/`##` 永远隐藏；**聚焦时**左侧 gutter 出层级图标
 - 行首 Backspace 去掉格式；空前缀行再 Enter 退出块
 
+**Diagram block（```` ```mermaid ````，块级 Live Render）**
+
+- 结构化解析层就与普通代码块分开（`diagramOpen` / `diagramLine` / `diagramClose`）
+- 光标离开围栏区域 → 源码整块隐藏、渲染为图表；光标进入 / 点击图表 → 回到源码编辑
+- 渲染只发生在 Concealed 态，编辑期间永远直面源码；结果按 `(lang, code)` 缓存
+
 **其它**
 
 - 序列化免费（`doc` 本身就是源码），roundtrip 无损
-- 可选 shiki 代码高亮（peer dependency，动态 import）
+- 可选 shiki 代码高亮 / mermaid 图表渲染（peer dependency，动态 import）
 - 防抖自动保存 + 指数退避 + 冲突提示
 
 ## 开发

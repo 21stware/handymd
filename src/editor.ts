@@ -13,6 +13,7 @@ import { markdownKeymap } from './keymap'
 import { normalizePlugin } from './normalize'
 import { caretGuardPlugin } from './caret'
 import { highlightPlugin, type CodeHighlighter } from './highlight'
+import { createDiagramRenderCallback, type DiagramRenderer } from './diagram'
 import { Autosave, type AutosaveOptions, type SaveStatus } from './autosave'
 
 /**
@@ -57,6 +58,12 @@ export interface HandyEditorOptions {
    * resolve 前先渲染无高亮版本）
    */
   highlight?: CodeHighlighter | Promise<CodeHighlighter>
+  /**
+   * diagram block 渲染器（推荐 `createMermaidRenderer()`，接受 Promise）。
+   * 提供后 ```mermaid 围栏在光标离开时渲染为图表，光标进入回到源码；
+   * 缺省时 diagram block 按普通代码块呈现。
+   */
+  diagram?: DiagramRenderer | Promise<DiagramRenderer>
 }
 
 type EventMap = {
@@ -138,7 +145,12 @@ export class HandyEditor {
     const doc = markdownToDoc(content)
 
     const plugins: Plugin[] = [
-      concealPlugin({ readOnly: this.readOnlyValue }),
+      concealPlugin({
+        readOnly: this.readOnlyValue,
+        renderDiagram: this.opts.diagram
+          ? createDiagramRenderCallback(this.opts.diagram)
+          : undefined,
+      }),
       imePlugin(),
       interactionsPlugin({ onOpenLink: this.opts.onOpenLink }),
       caretGuardPlugin(),

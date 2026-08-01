@@ -40,19 +40,25 @@ export function parseDoc(doc: PMNode): BlockMeta[] {
 
   const lines = classifyLines(texts)
 
-  // fence 区域配对：open 行的 hit 区间覆盖整个代码块（含 close 行），
-  // 这样光标在代码块内部任意位置时围栏行都保持 Revealed。
+  // fence / diagram 区域配对：open 行的 hit 区间覆盖整个围栏块（含 close 行），
+  // 这样光标在块内部任意位置时整个区域都保持 Revealed。
+  // diagram 额外在 open 行上聚合围栏体源码（渲染图表的输入）。
   const fenceRegion = new Map<number, { from: number; to: number }>()
+  const diagramCode = new Map<number, string>()
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].t !== 'fenceOpen') continue
+    const t = lines[i].t
+    if (t !== 'fenceOpen' && t !== 'diagramOpen') continue
+    const bodyT = t === 'fenceOpen' ? 'code' : 'diagramLine'
+    const closeT = t === 'fenceOpen' ? 'fenceClose' : 'diagramClose'
     let j = i + 1
-    while (j < lines.length && lines[j].t === 'code') j++
-    const last = j < lines.length && lines[j].t === 'fenceClose' ? j : j - 1
+    while (j < lines.length && lines[j].t === bodyT) j++
+    const last = j < lines.length && lines[j].t === closeT ? j : j - 1
     const region = {
       from: positions[i].pos,
       to: positions[last].pos + positions[last].size,
     }
     for (let k = i; k <= last; k++) fenceRegion.set(k, region)
+    if (t === 'diagramOpen') diagramCode.set(i, texts.slice(i + 1, j).join('\n'))
   }
 
   const blocks: BlockMeta[] = []
@@ -204,6 +210,53 @@ export function parseDoc(doc: PMNode): BlockMeta[] {
           static: true,
         })
         break
+
+      // —— diagram block：与 code block 在结构化解析层就分开 ——
+      // 三种行共享整块区域作为 hit 区间（都不 static / permanent）：
+      // 光标在区域外 → 全部 Concealed（隐藏源码、渲染图表 widget）；
+      // 光标进入区域 → 全部 Revealed（回到围栏源码编辑态）。
+      case 'diagramOpen': {
+        const region = fenceRegion.get(i)!
+        els.push({
+          kind: 'diagramOpen',
+          scope: 'block',
+          from: pos,
+          to: pos + size,
+          hitFrom: region.from,
+          hitTo: region.to,
+          markers: [{ from: start, to: start + text.length }],
+          attrs: { info: li.info, lang: li.lang, code: diagramCode.get(i) ?? '' },
+        })
+        break
+      }
+
+      case 'diagramLine': {
+        const region = fenceRegion.get(i) ?? { from: pos, to: pos + size }
+        els.push({
+          kind: 'diagramLine',
+          scope: 'block',
+          from: pos,
+          to: pos + size,
+          hitFrom: region.from,
+          hitTo: region.to,
+          markers: [{ from: start, to: start + text.length }],
+        })
+        break
+      }
+
+      case 'diagramClose': {
+        const region = fenceRegion.get(i) ?? { from: pos, to: pos + size }
+        els.push({
+          kind: 'diagramClose',
+          scope: 'block',
+          from: pos,
+          to: pos + size,
+          hitFrom: region.from,
+          hitTo: region.to,
+          markers: [{ from: start, to: start + text.length }],
+        })
+        break
+      }
 
       case 'para':
         inline(0)

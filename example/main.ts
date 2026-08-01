@@ -1,4 +1,4 @@
-import { createEditor, createShikiHighlighter } from '../src/index'
+import { createEditor, createMermaidRenderer, createShikiHighlighter } from '../src/index'
 import '../src/style.css'
 import './demo.css'
 
@@ -29,6 +29,14 @@ export function conceal(doc: string, selection: [number, number]): boolean {
 }
 \`\`\`
 
+\`\`\`mermaid
+flowchart LR
+    A[源码 Markdown] -->|光标离开| B((渲染为图表))
+    B -->|点击图表 / 光标进入| A
+\`\`\`
+
+↑ diagram block：光标离开 \`\`\`mermaid 围栏就渲染成图，点击图表回到源码编辑。
+
 标签走 pill 样式：#demo/handymd
 
 ---
@@ -52,6 +60,7 @@ const editor = createEditor({
   },
   autosave: { debounceMs: 800 },
   highlight: createShikiHighlighter({ theme: 'github-light' }),
+  diagram: createMermaidRenderer(),
   onPhaseChange: (phase) => {
     phaseEl.textContent = phase
     phaseEl.className = `pill pill-${phase}`

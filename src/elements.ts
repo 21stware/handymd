@@ -23,6 +23,9 @@ export type BlockKind =
   | 'fenceOpen'
   | 'fenceClose'
   | 'codeLine'
+  | 'diagramOpen'
+  | 'diagramClose'
+  | 'diagramLine'
 
 export type ElementKind = InlineKind | BlockKind
 
@@ -43,6 +46,10 @@ export interface ElementAttrs {
   num?: number
   /** fence 的语言信息串 */
   info?: string
+  /** diagram 的图表语言（info string 首个 token，如 `mermaid`） */
+  lang?: string
+  /** diagram 的源码（围栏体各行以 \n 拼接，只挂在 diagramOpen 上） */
+  code?: string
 }
 
 export interface ElementRange {

@@ -8,6 +8,8 @@
 bun add @21stware/handymd
 # 可选：代码高亮
 bun add shiki
+# 可选：mermaid 图表渲染
+bun add mermaid
 ```
 
 ```ts
@@ -142,6 +144,37 @@ createEditor({ mount, content, highlight })
 
 高亮永远只是 decoration，不改文档；结果按 `(lang, code)` 缓存。
 
+## 图表渲染（mermaid）
+
+`mermaid` 同样是**可选 peer 依赖**，动态 import，不装不进产物。
+
+```ts
+import { createEditor, createMermaidRenderer } from '@21stware/handymd'
+
+createEditor({
+  mount,
+  content,
+  diagram: createMermaidRenderer({ theme: 'neutral' }),
+})
+```
+
+```` ```mermaid ```` 围栏是 **diagram block**，在结构化解析层就与普通代码块分开，并遵循块级 Live Render 语义（与 Bear 的"渲染物 ⇄ 源码"手感一致）：
+
+- 光标离开围栏区域 → 整块源码隐藏，原地渲染为图表；
+- 光标进入区域（键盘移入）或**点击图表** → 立即回到围栏源码，样式与普通代码块一致；
+- 编辑期间永远是源码，渲染只在光标离开后发生，不会边打字边重渲染；
+- 图表语法错误显示错误信息，空围栏显示占位，两者点击都能进入源码修复；
+- 未配置 `diagram` 时，```` ```mermaid ```` 按普通代码块呈现。
+
+也可以接任意渲染器（返回 SVG/HTML 字符串，可异步）：
+
+```ts
+import type { DiagramRenderer } from '@21stware/handymd'
+
+const diagram: DiagramRenderer = async (code, lang) => `<svg>…</svg>`
+createEditor({ mount, content, diagram })
+```
+
 ## 主题 / CSS 变量
 
 在 `.handymd` 上覆盖变量即可：
@@ -210,6 +243,7 @@ createEditor({ mount, content, highlight })
 | `1. item` | 有序列表（自动重编号） |
 | `---` / `***` | 分隔线 |
 | \`\`\`lang | 代码块（可选 shiki） |
+| \`\`\`mermaid | diagram block（可选 mermaid；光标离开渲染为图，点击回源码） |
 
 ## 自建 EditorView（不用 createEditor）
 

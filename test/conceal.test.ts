@@ -163,6 +163,76 @@ describe('conceal/reveal state machine (L3)', () => {
     expect(findDecos(state, (s) => s.kind === 'codeLine').length).toBe(1)
   })
 
+  test('diagram block: cursor outside renders widget, cursor inside reveals source', () => {
+    const md = '```mermaid\ngraph TD\nA-->B\n```\nafter'
+    const renderDiagram = () => {}
+    const mk = () =>
+      EditorState.create({
+        doc: markdownToDoc(md),
+        plugins: [concealPlugin({ renderDiagram })],
+      })
+    const isDiagramWidget = (d: { spec: object }) =>
+      String((d.spec as { key?: string }).key ?? '').startsWith('dg:')
+
+    // 光标在区域外 → Concealed：整块源码隐藏 + 图表 widget
+    let state = setCursor(mk(), posOf(md, 'after'))
+    const widgets = findDecos(state, (s) => s.kind === 'diagramOpen' && s.role === 'widget')
+    expect(widgets.filter(isDiagramWidget).length).toBe(1)
+    const markers = findDecos(state, (s) => s.kind.startsWith('diagram') && s.role === 'marker')
+    expect(markers.length).toBe(4) // open + 两行体 + close 全部隐藏
+    expect(markers.every((d) => (d.spec as Spec).concealed)).toBe(true)
+
+    // 光标进入体行 → 整块 Revealed：widget 消失，回到代码块源码
+    state = setCursor(mk(), posOf(md, 'graph'))
+    expect(
+      findDecos(state, (s) => s.kind === 'diagramOpen' && s.role === 'widget').filter(
+        isDiagramWidget,
+      ).length,
+    ).toBe(0)
+    const nodes = findDecos(state, (s) => s.kind.startsWith('diagram') && s.role === 'node')
+    expect(nodes.length).toBe(4)
+    expect(nodes.every((d) => !(d.spec as Spec).concealed)).toBe(true)
+    // Revealed 态围栏标记可见（弱化色，不隐藏）
+    const revMarkers = findDecos(
+      state,
+      (s) => (s.kind === 'diagramOpen' || s.kind === 'diagramClose') && s.role === 'marker',
+    )
+    expect(revMarkers.every((d) => !(d.spec as Spec).concealed)).toBe(true)
+  })
+
+  test('diagram block without renderer degrades to a plain code fence', () => {
+    const md = '```mermaid\ngraph TD\n```\nafter'
+    let state = mkState(md)
+    state = setCursor(state, posOf(md, 'after'))
+    const widgets = findDecos(state, (s) => s.kind === 'diagramOpen' && s.role === 'widget')
+    // 只有语言徽标，没有图表 widget
+    expect(widgets.length).toBe(1)
+    expect(String((widgets[0].spec as { key?: string }).key)).toStartWith('lang:')
+    // 源码不折叠：体行仍是代码块样式的 node decoration
+    const bodyNodes = findDecos(state, (s) => s.kind === 'diagramLine' && s.role === 'node')
+    expect(bodyNodes.length).toBe(1)
+  })
+
+  test('readOnly keeps diagram rendered even with cursor inside', () => {
+    const md = '```mermaid\ngraph TD\n```'
+    let state = EditorState.create({
+      doc: markdownToDoc(md),
+      plugins: [concealPlugin({ renderDiagram: () => {} })],
+    })
+    state = setCursor(state, posOf(md, 'graph')) // Revealed
+    expect(
+      findDecos(state, (s) => s.kind === 'diagramOpen' && s.role === 'widget').filter((d) =>
+        String((d.spec as { key?: string }).key ?? '').startsWith('dg:'),
+      ).length,
+    ).toBe(0)
+    state = state.apply(state.tr.setMeta(concealKey, { readOnly: true }))
+    expect(
+      findDecos(state, (s) => s.kind === 'diagramOpen' && s.role === 'widget').filter((d) =>
+        String((d.spec as { key?: string }).key ?? '').startsWith('dg:'),
+      ).length,
+    ).toBe(1)
+  })
+
   test('todo checkbox widget is permanent (cursor in block does not reveal source)', () => {
     const md = '- [x] done\n\ncursor here'
     let state = mkState(md)

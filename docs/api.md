@@ -28,6 +28,7 @@ import '@21stware/handymd/style.css'
 | `autosave` | `Omit<AutosaveOptions, 'save' \| 'onStatusChange'>` | 见下 | 防抖/退避等 |
 | `readOnly` | `boolean` | `false` | 初始只读 |
 | `highlight` | `CodeHighlighter \| Promise<CodeHighlighter>` | — | 代码高亮 |
+| `diagram` | `DiagramRenderer \| Promise<DiagramRenderer>` | — | diagram block（如 ```` ```mermaid ````）渲染器；缺省时按普通代码块呈现 |
 | `onOpenLink` | `(href: string) => void` | `window.open` | Concealed 链接单击 |
 | `onChange` | `(md: string) => void` | — | 每次 `docChanged` |
 | `onPhaseChange` | `(phase: EditorPhase) => void` | — | L1 阶段变化 |
@@ -105,7 +106,11 @@ import {
   type ConcealState, type ConcealMeta, type ConcealOptions,
 } from '@21stware/handymd'
 
-const plugin = concealPlugin({ readOnly: false })
+const plugin = concealPlugin({
+  readOnly: false,
+  // 可选：diagram block 的渲染回调（见"图表渲染"一节）
+  renderDiagram: createDiagramRenderCallback(createMermaidRenderer()),
+})
 
 // 投递配置迁移
 view.dispatch(setConcealMeta(view.state.tr, { readOnly: true }))
@@ -117,7 +122,7 @@ const st = concealKey.getState(view.state)
 ```
 
 `isRevealed(el, selection, readOnly)`：pure hitTest。  
-`buildBlockDecos(block, revealed[])`：由元素+reveal 位生成 decoration。
+`buildBlockDecos(block, revealed[], ctx?)`：由元素+reveal 位生成 decoration；`ctx.renderDiagram` 控制 diagram block 的渲染。
 
 ---
 
@@ -165,6 +170,36 @@ highlightPlugin(hl)
 
 ---
 
+## 图表渲染（diagram block）
+
+```` ```mermaid ```` 围栏在**结构化解析层**就与普通代码块分开（`diagramOpen` / `diagramLine` / `diagramClose`），并遵循块级 Live Render 语义：光标离开围栏区域 → 源码整块隐藏、渲染为图表；光标进入（或点击图表）→ 回到围栏源码编辑，视觉与普通代码块一致。
+
+```ts
+import {
+  createMermaidRenderer, createDiagramRenderCallback,
+  type DiagramRenderer, type DiagramRenderCallback, type MermaidRendererOptions,
+} from '@21stware/handymd'
+
+// 渲染器契约：源码 → SVG/HTML 字符串（可异步；抛错 = 图表语法错误）
+type DiagramRenderer = (code: string, lang: string) => string | Promise<string>
+
+// 用 HandyEditor：直接传 diagram 选项（mermaid 为可选依赖，动态 import）
+createEditor({ mount, diagram: createMermaidRenderer({ theme: 'neutral' }) })
+
+// 自建 EditorView：包一层缓存回调再交给 concealPlugin
+concealPlugin({ renderDiagram: createDiagramRenderCallback(createMermaidRenderer()) })
+```
+
+行为细节：
+
+- 渲染只发生在 Concealed 态（光标离开之后），编辑期间永远是源码 —— 不存在"边打字边重渲染"的抖动；
+- 结果按 `(lang, code)` 缓存，光标反复进出同一图表命中缓存、无闪烁；
+- 渲染失败显示错误信息（`.hm-diagram-error`），点击仍可进入源码修复；
+- 空围栏显示占位（`.hm-diagram-empty`），不会让块"消失"；
+- 未配置渲染器时 diagram block 退化为普通代码块呈现（解析层仍然分类为 diagram）。
+
+---
+
 ## 文档模型与解析
 
 ```ts
@@ -189,7 +224,7 @@ parseDoc(doc)                   // BlockMeta[]（绝对坐标 + 元素表）
 
 | 字段 | 说明 |
 |---|---|
-| `kind` | `strong \| em \| code \| strike \| mark \| link \| image \| tag \| heading \| quote \| todo \| bullet \| ordered \| hr \| fenceOpen \| fenceClose \| codeLine` |
+| `kind` | `strong \| em \| code \| strike \| mark \| link \| image \| tag \| heading \| quote \| todo \| bullet \| ordered \| hr \| fenceOpen \| fenceClose \| codeLine \| diagramOpen \| diagramClose \| diagramLine` |
 | `scope` | `inline`（扩一格命中）/ `block`（块命中） |
 | `from` / `to` | 元素整体范围 |
 | `hitFrom` / `hitTo` | cursorEnter/Leave 判定区间 |
@@ -197,7 +232,7 @@ parseDoc(doc)                   // BlockMeta[]（绝对坐标 + 元素表）
 | `content` | 语义内容范围 |
 | `static` | 永不参与 reveal（tag / codeLine / ordered 序号样式） |
 | `permanent` | 永久 Concealed（quote / bullet / todo / hr） |
-| `attrs` | `level` / `checked` / `checkPos` / `href` / `alt` / `indent` / `num` / `info` |
+| `attrs` | `level` / `checked` / `checkPos` / `href` / `alt` / `indent` / `num` / `info` / `lang` / `code` |
 
 > 标题**不**设 `permanent`：源码 `#` 在 decoration 层永远隐藏，但聚焦时要展示层级图标，因此参与 reveal 判定。
 
@@ -223,3 +258,4 @@ import '@21stware/handymd/style.css' // package exports: "./style.css"
 | `.hm-quote` / `.hm-todo` / `.hm-bullet` / `.hm-ordered` | 块级 |
 | `.hm-checkbox` / `.hm-bullet-dot` / `.hm-hr` / `.hm-image` | widgets |
 | `.hm-code-line` / `.hm-fence-line` / `.hm-code-lang` | 代码块 |
+| `.hm-diagram` / `.hm-diagram-host` / `.hm-diagram-hidden` / `.hm-diagram-loading` / `.hm-diagram-empty` / `.hm-diagram-error` | diagram block |
