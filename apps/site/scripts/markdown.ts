@@ -147,11 +147,18 @@ export function renderMarkdown(src: string): RenderResult {
       !/^>\s?/.test(lines[i]!) &&
       !/^\s*([-*+])\s+/.test(lines[i]!) &&
       !/^\s*\d+\.\s+/.test(lines[i]!) &&
-      !/^\s*([-*_])\1{2,}\s*$/.test(lines[i]!) &&
+      !(/^\s*([-*_])\1{2,}\s*$/.test(lines[i]!) && !isInTable(lines, i)) &&
       !(isTableRow(lines[i]!) && i + 1 < lines.length && isTableSeparator(lines[i + 1]!))
     ) {
       para.push(lines[i]!)
       i++
+    }
+    if (para.length === 0) {
+      // Defensive: nothing matched as a block and paragraph wouldn't advance —
+      // emit as plain text and move on (avoids infinite loop on edge cases).
+      out.push(`<p>${inline(line)}</p>`)
+      i++
+      continue
     }
     out.push(`<p>${inline(para.join(' '))}</p>`)
   }
@@ -161,13 +168,11 @@ export function renderMarkdown(src: string): RenderResult {
 
 // ——— Inline ———
 function inline(text: string): string {
-  // Escape first, then apply markers in a safe order using placeholders.
-  let s = escapeHtml(text)
+  // Escape first, protect code spans with a linear scan (avoid ReDoS on nested `` ` `` runs),
+  // then apply the remaining markers.
+  const { text: withPlaceholders, codes } = protectCodeSpans(escapeHtml(text))
+  let s = withPlaceholders
 
-  // Inline code: `...` and ``...``
-  s = s.replace(/(`+)([^`]+?)\1/g, (_m, _q, code) => {
-    return `\u0000CODE${escapeAttr(code)}\u0000`
-  })
   // Strong: **...**
   s = s.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
   // Em: *...*
@@ -187,10 +192,62 @@ function inline(text: string): string {
     /&lt;(https?:\/\/[^&\s]+)&gt;/g,
     (_m, url) => `<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${url}</a>`,
   )
-  // Restore inline code
-  s = s.replace(/\u0000CODE([^\u0000]*)\u0000/g, (_m, code) => `<code>${code}</code>`)
+  // Restore inline code (index placeholders)
+  s = s.replace(/\u0000CODE(\d+)\u0000/g, (_m, idx) => {
+    const code = codes[Number(idx)] ?? ''
+    return `<code>${code}</code>`
+  })
 
   return s
+}
+
+/**
+ * CommonMark-ish code spans: N backticks … N backticks.
+ * Linear scan — the previous `/(`+)([^`]+?)\1/` form ReDoS'd on docs that
+ * mention fenced blocks with nested backticks (e.g. ```` ```mermaid ````).
+ */
+function protectCodeSpans(s: string): { text: string; codes: string[] } {
+  const codes: string[] = []
+  let out = ''
+  let i = 0
+  while (i < s.length) {
+    if (s[i] !== '`') {
+      out += s[i]!
+      i++
+      continue
+    }
+    let j = i
+    while (j < s.length && s[j] === '`') j++
+    const n = j - i
+    // Find a closing run of exactly n backticks (not part of a longer run).
+    let k = j
+    let found = -1
+    while (k < s.length) {
+      if (s[k] !== '`') {
+        k++
+        continue
+      }
+      let m = k
+      while (m < s.length && s[m] === '`') m++
+      if (m - k === n) {
+        found = k
+        break
+      }
+      k = m
+    }
+    if (found < 0) {
+      // Unclosed — emit the opening ticks as literal text.
+      out += s.slice(i, j)
+      i = j
+      continue
+    }
+    const code = s.slice(j, found)
+    const idx = codes.length
+    codes.push(code)
+    out += `\u0000CODE${idx}\u0000`
+    i = found + n
+  }
+  return { text: out, codes }
 }
 
 function externalAttr(href: string): string {
