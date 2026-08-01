@@ -109,6 +109,9 @@ Enter 特殊规则：
 - 列表/引用/标题（非行首）：split + 续前缀  
 - **标题行首**（内容起点、行非空）：上方插空段落，当前行保持 `# Title`  
 - 空前缀行再 Enter：清空前缀，退出块格式  
+- **表格行**：下方插入同列数空表体行（表格请用 `insertTable` 创建，无输入触发）
+
+表格是与 fence 类似的跨行状态机（`tableHeader` → `tableSep` → `tableRow*`）；管道符 permanent conceal，分隔行折叠。 
 
 ---
 

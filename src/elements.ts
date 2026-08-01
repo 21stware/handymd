@@ -26,6 +26,10 @@ export type BlockKind =
   | 'diagramOpen'
   | 'diagramClose'
   | 'diagramLine'
+  | 'tableHeader'
+  | 'tableSep'
+  | 'tableRow'
+  | 'tableCell'
 
 export type ElementKind = InlineKind | BlockKind
 
@@ -50,6 +54,12 @@ export interface ElementAttrs {
   lang?: string
   /** diagram 的源码（围栏体各行以 \n 拼接，只挂在 diagramOpen 上） */
   code?: string
+  /** 表格列数 */
+  colCount?: number
+  /** 表格单元格列下标 */
+  col?: number
+  /** 表格区域首/末行（用于边框圆角） */
+  tableEdge?: 'first' | 'last' | 'only'
 }
 
 export interface ElementRange {

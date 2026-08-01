@@ -403,6 +403,44 @@ export function buildBlockDecos(
           concealSpan(el, el.markers[0], out)
         }
         break
+
+      case 'tableHeader':
+      case 'tableRow': {
+        const edge = el.attrs?.tableEdge
+        const edgeCls =
+          edge === 'first' ? ' hm-table-first' : edge === 'last' ? ' hm-table-last' : edge === 'only' ? ' hm-table-only' : ''
+        const roleCls = el.kind === 'tableHeader' ? 'hm-table-header' : 'hm-table-row'
+        nodeDeco(block, el, rev, `hm-table ${roleCls}${edgeCls}`, out)
+        // 管道符永久隐藏，并打上 hm-table-pipe 以便从 flex 流中脱出
+        for (const m of el.markers) {
+          if (m.from >= m.to) continue
+          out.push(
+            Decoration.inline(
+              m.from,
+              m.to,
+              { class: 'hm-marker hm-concealed hm-table-pipe' },
+              spec(el, 'marker', true),
+            ),
+          )
+        }
+        break
+      }
+
+      case 'tableSep':
+        // 分隔行整行隐藏，视觉上由表头底边承担
+        nodeDeco(block, el, rev, 'hm-table hm-table-sep', out)
+        markerDecos(el, false, out)
+        break
+
+      case 'tableCell':
+        contentDeco(
+          el,
+          false,
+          'hm-table-cell',
+          out,
+          el.attrs?.col !== undefined ? { 'data-col': String(el.attrs.col) } : undefined,
+        )
+        break
     }
   })
 

@@ -36,6 +36,23 @@ export {
   arrowLeftSkipPrefix,
 } from './keymap'
 
+// 表格（编程式创建；无输入触发）
+export {
+  insertTable,
+  buildTableMarkdown,
+  goToNextTableCell,
+  goToPrevTableCell,
+  continueTableRow,
+} from './table'
+export type { InsertTableOptions } from './table'
+export {
+  parseTableRow,
+  isTableSeparator,
+  looksLikeTableRow,
+  formatTableRow,
+  formatSeparator,
+} from './parse/table'
+
 // 代码高亮
 export { highlightPlugin, highlightKey, createShikiHighlighter } from './highlight'
 export type { CodeHighlighter, HighlightSpan, ShikiHighlighterOptions } from './highlight'

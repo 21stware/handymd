@@ -15,6 +15,7 @@ import { caretGuardPlugin } from './caret'
 import { highlightPlugin, type CodeHighlighter } from './highlight'
 import { createDiagramRenderCallback, type DiagramRenderer } from './diagram'
 import { Autosave, type AutosaveOptions, type SaveStatus } from './autosave'
+import { insertTable as insertTableCommand, type InsertTableOptions } from './table'
 
 /**
  * L1 编辑器生命周期状态机：
@@ -239,6 +240,16 @@ export class HandyEditor {
     // 绕过只读锁（编程式替换不算用户写入）
     tr.setMeta('handymd-programmatic', true)
     view.dispatch(tr)
+  }
+
+  /**
+   * 编程式插入 GFM 管道表格。
+   * 表格是多行结构，不提供 Markdown 输入触发；请用本方法或 `insertTable` command。
+   */
+  insertTable(options: InsertTableOptions = {}): boolean {
+    const view = this.view
+    if (!view || this.phaseValue !== 'ready' || this.readOnlyValue) return false
+    return insertTableCommand(options)(view.state, view.dispatch.bind(view))
   }
 
   focus(): void {

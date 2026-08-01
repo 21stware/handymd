@@ -2,6 +2,7 @@ import type { Node as PMNode } from 'prosemirror-model'
 import type { ElementRange, RelElement, Span } from '../elements'
 import { classifyLines, type LineInfo } from './blocks'
 import { parseInlineCached } from './inline'
+import { parseTableRow } from './table'
 
 /**
  * 元素范围表：每个 block（行）一条 BlockMeta，携带该行解析出的全部元素
@@ -59,6 +60,20 @@ export function parseDoc(doc: PMNode): BlockMeta[] {
     }
     for (let k = i; k <= last; k++) fenceRegion.set(k, region)
     if (t === 'diagramOpen') diagramCode.set(i, texts.slice(i + 1, j).join('\n'))
+  }
+
+  // 表格区域：标记首/末行，供边框样式使用
+  const tableEdge = new Map<number, 'first' | 'last' | 'only'>()
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].t !== 'tableHeader') continue
+    let j = i + 1
+    while (j < lines.length && (lines[j].t === 'tableSep' || lines[j].t === 'tableRow')) j++
+    const last = j - 1
+    if (last === i) tableEdge.set(i, 'only')
+    else {
+      tableEdge.set(i, 'first')
+      tableEdge.set(last, 'last')
+    }
   }
 
   const blocks: BlockMeta[] = []
@@ -255,6 +270,53 @@ export function parseDoc(doc: PMNode): BlockMeta[] {
           hitTo: region.to,
           markers: [{ from: start, to: start + text.length }],
         })
+        break
+      }
+
+      case 'tableHeader':
+      case 'tableRow':
+      case 'tableSep': {
+        const colCount = li.colCount
+        const edge = tableEdge.get(i)
+        const parsed = parseTableRow(text)
+        const kind = li.t
+        els.push({
+          kind,
+          scope: 'block',
+          permanent: true,
+          from: pos,
+          to: pos + size,
+          ...blockHit,
+          markers:
+            kind === 'tableSep'
+              ? [{ from: start, to: start + text.length }]
+              : parsed.pipes.map((p) => ({ from: start + p.from, to: start + p.to })),
+          attrs: { colCount, tableEdge: edge },
+        })
+        if (kind !== 'tableSep') {
+          for (let c = 0; c < parsed.cells.length; c++) {
+            const cell = parsed.cells[c]
+            const cFrom = start + cell.from
+            const cTo = start + cell.to
+            els.push({
+              kind: 'tableCell',
+              scope: 'inline',
+              from: cFrom,
+              to: cTo,
+              hitFrom: cFrom,
+              hitTo: cTo,
+              markers: [],
+              content: { from: cFrom, to: cTo },
+              attrs: { col: c, colCount },
+              static: true,
+            })
+            if (cell.text) {
+              for (const rel of parseInlineCached(cell.text)) {
+                els.push(abs(rel, cFrom))
+              }
+            }
+          }
+        }
         break
       }
 

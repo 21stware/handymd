@@ -72,6 +72,10 @@ const editor = createEditor({
   },
 })
 
+document.getElementById('insert-table')!.addEventListener('click', () => {
+  editor.focus()
+  editor.insertTable({ rows: 3, cols: 3 })
+})
 document.getElementById('toggle-readonly')!.addEventListener('click', () => {
   editor.setReadOnly(!editor.readOnly)
 })
