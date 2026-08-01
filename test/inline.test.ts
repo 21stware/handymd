@@ -51,6 +51,30 @@ describe('parseInline', () => {
     expect(els[0].content).toEqual({ from: 2, to: 6 })
   })
 
+  test('highlight mark ==text==', () => {
+    const els = parseInline('see ==Markdown editor== now')
+    const mark = els.find((e) => e.kind === 'mark')!
+    expect(mark.from).toBe(4)
+    expect(mark.to).toBe(23)
+    expect(mark.content).toEqual({ from: 6, to: 21 })
+    expect(mark.markers).toEqual([
+      { from: 4, to: 6 },
+      { from: 21, to: 23 },
+    ])
+  })
+
+  test('em wrapping strong nests both', () => {
+    const src = '*Your writing starts with **Lettera**.*'
+    const els = parseInline(src)
+    expect(els.map((e) => e.kind).sort()).toEqual(['em', 'strong'])
+    const em = els.find((e) => e.kind === 'em')!
+    const strong = els.find((e) => e.kind === 'strong')!
+    expect(em.from).toBe(0)
+    expect(em.to).toBe(src.length)
+    expect(src.slice(strong.from, strong.to)).toBe('**Lettera**')
+    expect(src.slice(em.content!.from, em.content!.to)).toBe('Your writing starts with **Lettera**.')
+  })
+
   test('bear-style tag is static', () => {
     const els = parseInline('note #work/deep 结束')
     const tag = els.find((e) => e.kind === 'tag')!

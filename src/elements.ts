@@ -11,7 +11,7 @@ export interface Span {
   to: number
 }
 
-export type InlineKind = 'strong' | 'em' | 'code' | 'strike' | 'link' | 'image' | 'tag'
+export type InlineKind = 'strong' | 'em' | 'code' | 'strike' | 'mark' | 'link' | 'image' | 'tag'
 
 export type BlockKind =
   | 'heading'
@@ -73,8 +73,12 @@ export interface ElementRange {
   static?: boolean
   /**
    * permanent 元素永久 Concealed（Bear 的块级手感）：hr / bullet / quote /
-   * todo / heading 一旦解析立即渲染，光标进入也不回到源码。标记符仍然
-   * 存在于源码中（序列化无损），只是永远不显示。
+   * todo 一旦解析立即渲染，光标进入也不回到源码。标记符仍然存在于源码中
+   * （序列化无损），只是永远不显示。
+   *
+   * 标题例外：源码 `#`/`##` 永远隐藏，但聚焦时在 gutter 展示层级图标
+   * （见 decorations 的 heading 分支）—— 因此 heading 不设 permanent，
+   * 以便参与 cursorEnter/Leave 判定。
    */
   permanent?: boolean
 }

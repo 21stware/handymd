@@ -4,10 +4,10 @@ import type { RelElement, Span } from '../elements'
  * 行内元素扫描器。输入单行文本（不含换行），输出相对坐标（base=0）的元素表。
  *
  * 解析优先级（CommonMark 精神，但为源码保真模型做了简化）：
- *   code span > image > link > strong > strike > em > tag
+ *   code span > image > link > strong > strike > mark > em > tag
  *
- * 用 taken 位图实现遮罩：code/link/image 独占整个范围；strong/strike 只独占
- * 标记符本身，因此 `**bold *em* bold**` 里嵌套的 em 仍然可以命中。
+ * 用 taken 位图实现遮罩：code/link/image 独占整个范围；strong/strike/mark
+ * 只独占标记符本身，因此嵌套仍可命中（`*outer **inner** outer*`）。
  */
 
 const CODE_RE = /(?<!`)(`+)([^`\n]+)\1(?!`)/g
@@ -15,8 +15,7 @@ const IMAGE_RE = /!\[([^\[\]\n]*)\]\(([^)\n]*)\)/g
 const LINK_RE = /(?<!!)\[([^\[\]\n]*)\]\(([^)\n]*)\)/g
 const STRONG_RE = /(\*\*|__)(?!\s)([^\n]+?)(?<!\s)\1/g
 const STRIKE_RE = /~~(?!\s)([^~\n]+?)(?<!\s)~~/g
-const EM_STAR_RE = /(?<![A-Za-z0-9*\\])\*(?![\s*])([^*\n]+?)(?<!\s)\*(?![A-Za-z0-9*])/g
-const EM_UNDER_RE = /(?<![A-Za-z0-9_\\])_(?![\s_])([^_\n]+?)(?<!\s)_(?![A-Za-z0-9_])/g
+const MARK_RE = /==(?!\s)([^=\n]+?)(?<!\s)==/g
 const TAG_RE = /(?<=^|[\s(（【"'：:，,、。;；])#([\p{L}\p{N}_][\p{L}\p{N}_\-/]*)/gu
 
 export function parseInline(text: string): RelElement[] {
@@ -123,26 +122,29 @@ export function parseInline(text: string): RelElement[] {
     take(to - 2, to)
   }
 
-  // 6. em
-  for (const re of [EM_STAR_RE, EM_UNDER_RE]) {
-    for (const m of text.matchAll(re)) {
-      const from = m.index!
-      const to = from + m[0].length
-      if (!isFree(from, from + 1) || !isFree(to - 1, to)) continue
-      out.push({
-        kind: 'em',
-        scope: 'inline',
-        from,
-        to,
-        markers: [span(from, from + 1), span(to - 1, to)],
-        content: span(from + 1, to - 1),
-      })
-      take(from, from + 1)
-      take(to - 1, to)
-    }
+  // 6. mark / highlight pen（==text==）
+  for (const m of text.matchAll(MARK_RE)) {
+    const from = m.index!
+    const to = from + m[0].length
+    if (!isFree(from, from + 2) || !isFree(to - 2, to)) continue
+    out.push({
+      kind: 'mark',
+      scope: 'inline',
+      from,
+      to,
+      markers: [span(from, from + 2), span(to - 2, to)],
+      content: span(from + 2, to - 2),
+    })
+    take(from, from + 2)
+    take(to - 2, to)
   }
 
-  // 7. tags（Bear 风格 #tag，永远以 pill 展示，不参与 conceal —— static）
+  // 7. em —— 不用 `[^*]+` 正则（会挡住 `*a **b** c*` 这种嵌套），
+  // 改为扫描成对 `*` / `_`，只要求两端标记符空闲，内容可含已被 strong 占用的 `*`。
+  parseEmphasis(text, '*', taken, out, take)
+  parseEmphasis(text, '_', taken, out, take)
+
+  // 8. tags（Bear 风格 #tag，永远以 pill 展示，不参与 conceal —— static）
   for (const m of text.matchAll(TAG_RE)) {
     const from = m.index!
     const to = from + m[0].length
@@ -161,6 +163,108 @@ export function parseInline(text: string): RelElement[] {
 
   out.sort((a, b) => a.from - b.from || a.to - b.to)
   return out
+}
+
+/**
+ * 成对强调标记扫描。跳过已占用位置；要求：
+ * - opener 左侧不是字母数字/同字符（避免 a*b* / 以及 ** 的一部分）
+ * - opener 右侧不是空白或同字符
+ * - closer 左侧不是空白
+ * - closer 右侧不是字母数字/同字符
+ * - 内容非空
+ */
+function parseEmphasis(
+  text: string,
+  ch: '*' | '_',
+  taken: Uint8Array,
+  out: RelElement[],
+  take: (a: number, b: number) => void,
+): void {
+  const isWord = (c: string | undefined) => !!c && /[A-Za-z0-9]/.test(c)
+  let i = 0
+  while (i < text.length) {
+    if (taken[i] || text[i] !== ch) {
+      i++
+      continue
+    }
+    // 跳过作为 strong 的一部分（连续两个同字符且都空闲 —— 已被 strong 阶段吃掉；
+    // 若仍空闲则是未配对的 **，也不应做 em opener）
+    if (text[i + 1] === ch && !taken[i + 1]) {
+      i += 2
+      continue
+    }
+    const prev = i > 0 ? text[i - 1] : undefined
+    const next = text[i + 1]
+    if (prev === ch || next === ch || next === undefined || /\s/.test(next)) {
+      i++
+      continue
+    }
+    if (ch === '*' && isWord(prev)) {
+      i++
+      continue
+    }
+    if (ch === '_' && (isWord(prev) || prev === '_')) {
+      i++
+      continue
+    }
+
+    // 寻找 closer
+    let j = i + 1
+    let found = -1
+    while (j < text.length) {
+      if (taken[j] || text[j] !== ch) {
+        j++
+        continue
+      }
+      if (text[j + 1] === ch && !taken[j + 1]) {
+        j += 2
+        continue
+      }
+      const before = text[j - 1]
+      const after = text[j + 1]
+      if (before === undefined || /\s/.test(before)) {
+        j++
+        continue
+      }
+      if (after === ch) {
+        j++
+        continue
+      }
+      if (ch === '*' && isWord(after)) {
+        j++
+        continue
+      }
+      if (ch === '_' && (isWord(after) || after === '_')) {
+        j++
+        continue
+      }
+      if (j > i + 1) {
+        found = j
+        break
+      }
+      j++
+    }
+
+    if (found < 0) {
+      i++
+      continue
+    }
+
+    out.push({
+      kind: 'em',
+      scope: 'inline',
+      from: i,
+      to: found + 1,
+      markers: [
+        { from: i, to: i + 1 },
+        { from: found, to: found + 1 },
+      ],
+      content: { from: i + 1, to: found },
+    })
+    take(i, i + 1)
+    take(found, found + 1)
+    i = found + 1
+  }
 }
 
 /**

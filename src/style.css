@@ -64,6 +64,20 @@
   text-decoration: line-through;
   color: var(--hm-fg-dim);
 }
+/* 高亮笔 ==mark== */
+.handymd .hm-mark {
+  background: color-mix(in srgb, var(--hm-accent) 22%, transparent);
+  border-radius: 2px;
+  padding: 0 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+/* 空标题末尾空格：保留字号给光标落脚，颜色透明不露源码 */
+.handymd .hm-caret-pad {
+  font-size: inherit !important;
+  letter-spacing: normal !important;
+  color: transparent;
+}
 .handymd .hm-code {
   font-family: var(--hm-mono);
   font-size: 0.88em;

@@ -96,6 +96,10 @@ export function buildBlockDecos(block: BlockMeta, revealed: readonly boolean[]):
         contentDeco(el, rev, 'hm-strike', out)
         markerDecos(el, rev, out)
         break
+      case 'mark':
+        contentDeco(el, rev, 'hm-mark', out)
+        markerDecos(el, rev, out)
+        break
       case 'code':
         contentDeco(el, rev, 'hm-code', out)
         markerDecos(el, rev, out)
@@ -137,32 +141,65 @@ export function buildBlockDecos(block: BlockMeta, revealed: readonly boolean[]):
         break
 
       case 'heading': {
-        // permanent：`# ` 前缀永久隐藏，改用左侧 gutter 图标示意层级。
-        // 图标绝对定位在文本前侧，不挤占内容，标题行文本不会变动。
+        // `#`/`##` 源码永远隐藏；聚焦（rev）时在 gutter 展示层级图标（非源码）。
+        // 空标题（只有前缀）保留末尾空格为 caret-pad，避免 font-size:0 导致光标消失。
         const level = el.attrs?.level ?? 1
-        nodeDeco(block, el, rev, `hm-heading hm-h${level}`, out)
-        markerDecos(el, rev, out)
-        const at = el.markers[0].to
-        widget(
-          el,
-          at,
-          `hb:${at}:${level}`,
-          () => {
-            const badge = document.createElement('span')
-            badge.className = 'hm-heading-badge'
-            badge.setAttribute('aria-hidden', 'true')
-            badge.innerHTML =
-              `<svg viewBox="0 0 18 18" width="18" height="18">` +
-              `<rect x="1" y="3" width="16" height="2.4" rx="1.2" fill="currentColor"/>` +
-              `<rect x="1" y="8" width="7" height="2.4" rx="1.2" fill="currentColor"/>` +
-              `<rect x="1" y="13" width="7" height="2.4" rx="1.2" fill="currentColor"/>` +
-              `<text x="11" y="16" font-size="9.5" font-weight="700" fill="currentColor">${level}</text>` +
-              `</svg>`
-            return badge
-          },
-          out,
-          -1,
-        )
+        const empty = !el.content || el.content.from >= el.content.to
+        nodeDeco(block, el, rev, `hm-heading hm-h${level}${empty ? ' hm-heading-empty' : ''}`, out)
+        for (const m of el.markers) {
+          if (m.from >= m.to) continue
+          if (empty && m.to - m.from >= 2) {
+            // 隐藏 `#`/`##`，保留末尾空格给光标落脚
+            out.push(
+              Decoration.inline(
+                m.from,
+                m.to - 1,
+                { class: 'hm-marker hm-concealed' },
+                spec(el, 'marker', true),
+              ),
+            )
+            out.push(
+              Decoration.inline(
+                m.to - 1,
+                m.to,
+                { class: 'hm-marker hm-caret-pad' },
+                spec(el, 'marker', true, { caretPad: true }),
+              ),
+            )
+          } else {
+            out.push(
+              Decoration.inline(
+                m.from,
+                m.to,
+                { class: 'hm-marker hm-concealed' },
+                spec(el, 'marker', true),
+              ),
+            )
+          }
+        }
+        if (rev) {
+          const at = el.markers[0].to
+          widget(
+            el,
+            at,
+            `hb:${at}:${level}`,
+            () => {
+              const badge = document.createElement('span')
+              badge.className = 'hm-heading-badge'
+              badge.setAttribute('aria-hidden', 'true')
+              badge.innerHTML =
+                `<svg viewBox="0 0 18 18" width="18" height="18">` +
+                `<rect x="1" y="3" width="16" height="2.4" rx="1.2" fill="currentColor"/>` +
+                `<rect x="1" y="8" width="7" height="2.4" rx="1.2" fill="currentColor"/>` +
+                `<rect x="1" y="13" width="7" height="2.4" rx="1.2" fill="currentColor"/>` +
+                `<text x="11" y="16" font-size="9.5" font-weight="700" fill="currentColor">${level}</text>` +
+                `</svg>`
+              return badge
+            },
+            out,
+            -1,
+          )
+        }
         break
       }
 

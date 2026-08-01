@@ -73,10 +73,10 @@ export function parseDoc(doc: PMNode): BlockMeta[] {
 
     switch (li.t) {
       case 'heading':
+        // 不设 permanent：聚焦时展示层级图标（非源码）；`#`/`##` 在 decoration 层永远隐藏
         els.push({
           kind: 'heading',
           scope: 'block',
-          permanent: true,
           from: pos,
           to: pos + size,
           ...blockHit,

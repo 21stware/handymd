@@ -37,16 +37,24 @@ const opened = () => page.evaluate(() => (window as unknown as { __opened: strin
 const domAnchor = () =>
   page.evaluate(() => window.getSelection()?.anchorNode?.textContent ?? 'none')
 
-// —— 1. 标题：前缀永久隐藏 + 左侧层级图标 ——
+// —— 1. 标题：源码永远隐藏；层级图标仅聚焦时出现 ——
 const h1 = page.locator('.hm-h1').first()
+// 先点到别处，确认未聚焦时无图标
+await page.locator('.hm-strong').first().click()
+await page.waitForTimeout(100)
+check(
+  'heading badge hidden when unfocused',
+  (await page.locator('.hm-heading-badge').count()) === 0,
+  String(await page.locator('.hm-heading-badge').count()),
+)
 await h1.click()
 await page.waitForTimeout(100)
 const headingStaysConcealed = await page.evaluate(
-  () => !document.querySelector('.hm-h1 .hm-marker:not(.hm-concealed)'),
+  () => !document.querySelector('.hm-h1 .hm-marker:not(.hm-concealed):not(.hm-caret-pad)'),
 )
-check('heading "# " stays concealed even with cursor inside', headingStaysConcealed)
+check('heading "# " source stays concealed while focused', headingStaysConcealed)
 check(
-  'heading level badge rendered in gutter',
+  'heading level badge shown when focused',
   (await page.locator('.hm-heading-badge').count()) > 0,
   String(await page.locator('.hm-heading-badge').count()),
 )

@@ -32,15 +32,29 @@ function findDecos(state: EditorState, pred: (spec: Spec) => boolean) {
 const MD = '# Title\n\npara **bold** tail'
 
 describe('conceal/reveal state machine (L3)', () => {
-  test('heading prefix is permanently concealed, level badge widget instead', () => {
-    // 初始 selection 在第一个块内 —— 即便光标在块里，`# ` 也不回源码（Bear 手感）
-    const state = mkState(MD)
+  test('heading badge only when focused; source "#" always concealed', () => {
+    // 光标在标题内 → 源码隐藏 + 层级图标出现
+    let state = mkState(MD)
     const markers = findDecos(state, (s) => s.kind === 'heading' && s.role === 'marker')
-    expect(markers.length).toBe(1)
-    expect((markers[0].spec as Spec).concealed).toBe(true)
-    // 层级图标 widget 永久存在
-    const badges = findDecos(state, (s) => s.kind === 'heading' && s.role === 'widget')
-    expect(badges.length).toBe(1)
+    expect(markers.length).toBeGreaterThan(0)
+    expect(markers.every((d) => (d.spec as Spec).concealed)).toBe(true)
+    expect(findDecos(state, (s) => s.kind === 'heading' && s.role === 'widget').length).toBe(1)
+
+    // 光标离开标题 → 图标消失，源码仍隐藏
+    state = setCursor(state, posOf(MD, 'para'))
+    expect(findDecos(state, (s) => s.kind === 'heading' && s.role === 'widget').length).toBe(0)
+    const markersAway = findDecos(state, (s) => s.kind === 'heading' && s.role === 'marker')
+    expect(markersAway.every((d) => (d.spec as Spec).concealed)).toBe(true)
+  })
+
+  test('empty heading keeps a caret-pad so the cursor stays visible', () => {
+    const state = mkState('# ')
+    const pads = concealKey.getState(state)!.set.find(
+      undefined,
+      undefined,
+      (spec) => (spec as Spec & { caretPad?: boolean }).caretPad === true,
+    )
+    expect(pads.length).toBe(1)
   })
 
   test('cursor elsewhere conceals heading and strong', () => {
@@ -74,7 +88,7 @@ describe('conceal/reveal state machine (L3)', () => {
     expect(strong.every((d) => (d.spec as Spec).concealed)).toBe(true)
   })
 
-  test('select-all reveals inline markers; permanent block prefixes stay concealed', () => {
+  test('select-all reveals inline markers; heading source stays concealed but badge shows', () => {
     let state = mkState(MD)
     state = state.apply(state.tr.setSelection(new AllSelection(state.doc)))
     const inline = findDecos(state, (s) => s.kind === 'strong' && s.role === 'marker')
@@ -82,6 +96,7 @@ describe('conceal/reveal state machine (L3)', () => {
     expect(inline.every((d) => !(d.spec as Spec).concealed)).toBe(true)
     const heading = findDecos(state, (s) => s.kind === 'heading' && s.role === 'marker')
     expect(heading.every((d) => (d.spec as Spec).concealed)).toBe(true)
+    expect(findDecos(state, (s) => s.kind === 'heading' && s.role === 'widget').length).toBe(1)
   })
 
   test('selection-only move with unchanged result reuses plugin state object', () => {

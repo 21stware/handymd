@@ -198,6 +198,7 @@ export function markdownKeymap(): Plugin {
     'Mod-i': toggleInline('*'),
     'Mod-e': toggleInline('`'),
     'Mod-Shift-x': toggleInline('~~'),
+    'Mod-Shift-h': toggleInline('=='),
     Tab: indentListItem,
     'Shift-Tab': dedentListItem,
   })
