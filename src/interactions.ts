@@ -1,4 +1,4 @@
-import { Plugin } from 'prosemirror-state'
+import { Plugin, TextSelection } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
 import { concealKey, type ConcealState } from './conceal/plugin'
 import type { ElementRange } from './elements'
@@ -72,8 +72,6 @@ export function interactionsPlugin(options: InteractionOptions = {}): Plugin {
           }
 
           if (event.button !== 0) return false
-          // Cmd/Ctrl+点击 = 进入编辑（走默认光标移动路径）
-          if (event.metaKey || event.ctrlKey) return false
 
           const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
           if (!coords) return false
@@ -84,14 +82,26 @@ export function interactionsPlugin(options: InteractionOptions = {}): Plugin {
           const href = el?.attrs?.href
           if (!el || !href) return false
 
-          // 只有 Concealed 态的链接才拦截打开；Revealed 态点击 = 正常编辑
+          // 只有 Concealed 态的链接需要特殊处理；Revealed 态点击 = 正常编辑
           const sel = view.state.selection
           const concealed =
             st.readOnly || !spansIntersect(sel.from, sel.to, el.hitFrom, el.hitTo)
           if (!concealed) return false
 
+          if (event.metaKey || event.ctrlKey) {
+            // Cmd/Ctrl+点击 = 进入编辑：显式把文本光标放到点击处。
+            // 不能走默认路径 —— 非 Mac 下 ctrl+click 是 PM 的 node-selection。
+            event.preventDefault()
+            view.dispatch(
+              view.state.tr.setSelection(TextSelection.create(view.state.doc, coords.pos)),
+            )
+            view.focus()
+            return true
+          }
+
           event.preventDefault()
-          openLink(href)
+          // 双击/三击的后续 mousedown（detail > 1）只拦截、不再重复打开
+          if (event.detail <= 1) openLink(href)
           return true
         },
       },

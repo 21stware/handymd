@@ -147,6 +147,7 @@ bun test            # 48 个测试：解析 / L3 状态机 / L4 状态机 / L1 �
 bun run typecheck
 bun run build       # dist/（ESM + d.ts + style.css）
 bun run dev         # 启动 example/ 演示应用
+bun run e2e         # 真实 Chromium 交互验证（需先 bun run dev + bunx playwright install chromium）
 ```
 
 ## 支持的 Markdown 语法
