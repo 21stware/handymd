@@ -47,6 +47,12 @@ flowchart TB
    - 一旦解析立即渲染，**永不**因光标进入回到源码  
    - 标记仍在源码中（序列化无损）
 
+2.5 **diagram block**（```` ```mermaid ```` → `diagramOpen` / `diagramLine` / `diagramClose`）  
+   - 结构化解析层就与 code block 分开；三种行共享整块区域作为 hit 区间  
+   - Concealed（光标在区域外）→ 源码整块隐藏（开行折叠成 widget 宿主，体行/闭行零高），渲染图表 widget  
+   - Revealed（光标进入区域 / 点击图表）→ 与普通代码块一致的围栏源码编辑态  
+   - 渲染只发生在 Concealed 态，结果按 `(lang, code)` 缓存；readOnly 强制渲染态
+
 3. **标题（特殊）**  
    - 源码 `#`/`##` 永远隐藏  
    - 聚焦时 gutter 展示层级图标（非源码）  
@@ -160,7 +166,7 @@ stateDiagram-v2
 | 隐藏标记 | `Decoration.inline` + `.hm-concealed { font-size: 0 }` |
 | 行首光标垫 | `.hm-caret-pad`（透明、正常字号） |
 | 语义样式 | `Decoration.inline` / `Decoration.node` |
-| checkbox / 图片 / hr / 标题图标 / 语言徽标 | `Decoration.widget` |
+| checkbox / 图片 / hr / 标题图标 / 语言徽标 / 图表 | `Decoration.widget` |
 | cursorEnter/Leave | `apply(tr)` 比较 selection 与 ranges，按块签名增量重建 |
 | IME 冻结 | composing 期间只 map；end 后 meta 事务重算 |
 | 链接打开 | `handleDOMEvents.mousedown` |

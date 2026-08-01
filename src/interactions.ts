@@ -11,6 +11,9 @@ import { spansIntersect } from './elements'
  *   要进入编辑必须用键盘移入，或 Cmd/Ctrl+点击。这是 Bear 区别于普通编辑器的手感。
  * - checkbox widget 点击切换 `[ ]` ↔ `[x]`（直接改源码文本，不动 selection）。
  *   readOnly 下该写事务会被 L1 的 filterTransaction 拒绝，展示仍然工作。
+ * - diagram widget（渲染态图表）点击 = 进入编辑：把光标送到围栏开行末尾，
+ *   selection 进入区域 → 整块立即 Revealed 回源码（Bear 的"点渲染物回源码"手感）。
+ *   readOnly 下点击不进入编辑（reveal 被强制关闭，进去也只会看到空白）。
  */
 
 export interface InteractionOptions {
@@ -26,6 +29,27 @@ function findLinkAt(st: ConcealState, pos: number): ElementRange | null {
     }
   }
   return null
+}
+
+/** 点击渲染态图表 → 光标进入围栏开行末尾（触发整块 Revealed） */
+function enterDiagramAt(view: EditorView, dom: HTMLElement): boolean {
+  const st = concealKey.getState(view.state)
+  if (!st || st.readOnly) return false
+  let pos: number
+  try {
+    pos = view.posAtDOM(dom, 0)
+  } catch {
+    return false
+  }
+  for (const block of st.blocks) {
+    if (pos < block.pos || pos > block.pos + block.size) continue
+    if (block.line.t !== 'diagramOpen') return false
+    const end = block.pos + 1 + block.text.length
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, end)))
+    view.focus()
+    return true
+  }
+  return false
 }
 
 function toggleTodoAt(view: EditorView, dom: Node): boolean {
@@ -72,6 +96,14 @@ export function interactionsPlugin(options: InteractionOptions = {}): Plugin {
           }
 
           if (event.button !== 0) return false
+
+          // diagram widget：点击进入源码编辑（隐藏行零高，默认命中不可靠，显式处理）
+          const diagram = target?.closest?.('.hm-diagram') as HTMLElement | null
+          if (diagram) {
+            event.preventDefault()
+            enterDiagramAt(view, diagram)
+            return true
+          }
 
           const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
           if (!coords) return false

@@ -42,6 +42,36 @@ describe('classifyLines', () => {
     expect(lines.map((l) => l.t)).toEqual(['fenceOpen', 'code', 'code'])
   })
 
+  test('mermaid fence splits into a diagram block at parse time', () => {
+    const lines = classifyLines(['```mermaid', 'graph TD', 'A-->B', '```', 'after'])
+    expect(lines.map((l) => l.t)).toEqual([
+      'diagramOpen',
+      'diagramLine',
+      'diagramLine',
+      'diagramClose',
+      'para',
+    ])
+    expect(lines[0]).toMatchObject({ info: 'mermaid', lang: 'mermaid', tickLen: 3 })
+  })
+
+  test('diagram lang detection: first info token, case-insensitive, extra tokens ok', () => {
+    expect(classifyLines(['```Mermaid theme=dark'])[0]).toMatchObject({
+      t: 'diagramOpen',
+      lang: 'mermaid',
+      info: 'Mermaid theme=dark',
+    })
+    // 非图表语言仍是 code block
+    expect(classifyLines(['```mermaidx'])[0].t).toBe('fenceOpen')
+    expect(classifyLines(['```js'])[0].t).toBe('fenceOpen')
+  })
+
+  test('~~~ diagram fence and unclosed diagram', () => {
+    const closed = classifyLines(['~~~mermaid', 'pie', '~~~'])
+    expect(closed.map((l) => l.t)).toEqual(['diagramOpen', 'diagramLine', 'diagramClose'])
+    const open = classifyLines(['```mermaid', 'graph TD'])
+    expect(open.map((l) => l.t)).toEqual(['diagramOpen', 'diagramLine'])
+  })
+
   test('hr beats bullet for ---', () => {
     expect(classifyLines(['---'])[0].t).toBe('hr')
     expect(classifyLines(['***'])[0].t).toBe('hr')

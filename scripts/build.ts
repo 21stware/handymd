@@ -18,6 +18,7 @@ const result = await Bun.build({
     'prosemirror-commands',
     'prosemirror-history',
     'shiki',
+    'mermaid',
   ],
 })
 

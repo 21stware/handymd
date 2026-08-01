@@ -1,4 +1,5 @@
 import { Decoration } from 'prosemirror-view'
+import type { DiagramRenderCallback } from '../diagram'
 import type { ElementRange, Span } from '../elements'
 import type { BlockMeta } from '../parse/docparse'
 
@@ -110,7 +111,46 @@ function concealSpan(el: ElementRange, s: Span, out: Decoration[]): void {
   )
 }
 
-export function buildBlockDecos(block: BlockMeta, revealed: readonly boolean[]): Decoration[] {
+/** fence 围栏开行：面板样式 + 弱化标记；Concealed 时展示语言徽标 */
+function fenceOpenDecos(block: BlockMeta, el: ElementRange, rev: boolean, out: Decoration[]): void {
+  nodeDeco(block, el, rev, 'hm-fence-line hm-fence-open', out)
+  markerDecos(el, rev, out)
+  const info = el.attrs?.info
+  if (!rev && info) {
+    widget(
+      el,
+      el.markers[0].from,
+      `lang:${el.from}:${info}`,
+      () => {
+        const badge = document.createElement('span')
+        badge.className = 'hm-code-lang'
+        badge.textContent = info
+        return badge
+      },
+      out,
+      -1,
+    )
+  }
+}
+
+function fenceCloseDecos(block: BlockMeta, el: ElementRange, rev: boolean, out: Decoration[]): void {
+  nodeDeco(block, el, rev, 'hm-fence-line hm-fence-close', out)
+  markerDecos(el, rev, out)
+}
+
+/**
+ * decoration 生成的环境依赖。renderDiagram 缺省时 diagram block 退化为
+ * 普通 code block 呈现（结构化解析仍然分类为 diagram，只是不渲染图表）。
+ */
+export interface DecorationContext {
+  renderDiagram?: DiagramRenderCallback
+}
+
+export function buildBlockDecos(
+  block: BlockMeta,
+  revealed: readonly boolean[],
+  ctx?: DecorationContext,
+): Decoration[] {
   const out: Decoration[] = []
 
   block.elements.forEach((el, i) => {
@@ -290,35 +330,78 @@ export function buildBlockDecos(block: BlockMeta, revealed: readonly boolean[]):
         }
         break
 
-      case 'fenceOpen': {
-        nodeDeco(block, el, rev, 'hm-fence-line hm-fence-open', out)
-        markerDecos(el, rev, out)
-        const info = el.attrs?.info
-        if (!rev && info) {
-          widget(
-            el,
-            el.markers[0].from,
-            `lang:${el.from}:${info}`,
-            () => {
-              const badge = document.createElement('span')
-              badge.className = 'hm-code-lang'
-              badge.textContent = info
-              return badge
-            },
-            out,
-            -1,
-          )
-        }
+      case 'fenceOpen':
+        fenceOpenDecos(block, el, rev, out)
         break
-      }
 
       case 'fenceClose':
-        nodeDeco(block, el, rev, 'hm-fence-line hm-fence-close', out)
-        markerDecos(el, rev, out)
+        fenceCloseDecos(block, el, rev, out)
         break
 
       case 'codeLine':
         nodeDeco(block, el, false, 'hm-code-line', out)
+        break
+
+      // —— diagram block（Bear 的 Live Render 手感搬到块级） ——
+      // Revealed（光标在围栏区域内）：与普通代码块一致 —— 源码 + 面板底色，
+      //   编辑期间永远直面源码，不做"边打字边渲染"。
+      // Concealed（光标离开区域）：整块源码隐藏（开行折叠成 widget 宿主，
+      //   体行/闭行折叠为零高），在开行处渲染图表 widget；点击图表进入编辑
+      //   （interactions 层把光标送回围栏行 → 立即 Revealed 回源码）。
+      case 'diagramOpen': {
+        if (!ctx?.renderDiagram) {
+          fenceOpenDecos(block, el, rev, out)
+          break
+        }
+        if (rev) {
+          fenceOpenDecos(block, el, true, out)
+          break
+        }
+        nodeDeco(block, el, false, 'hm-diagram-host', out)
+        concealSpan(el, el.markers[0], out)
+        const code = el.attrs?.code ?? ''
+        const lang = el.attrs?.lang ?? ''
+        const renderDiagram = ctx.renderDiagram
+        widget(
+          el,
+          el.markers[0].from,
+          `dg:${el.from}:${lang}:${code}`,
+          () => {
+            const container = document.createElement('div')
+            container.className = 'hm-diagram'
+            container.setAttribute('data-lang', lang)
+            if (!code.trim()) {
+              container.classList.add('hm-diagram-empty')
+              container.textContent = lang
+            } else {
+              renderDiagram(container, code, lang)
+            }
+            return container
+          },
+          out,
+          -1,
+        )
+        break
+      }
+
+      case 'diagramLine':
+        if (!ctx?.renderDiagram) {
+          nodeDeco(block, el, false, 'hm-code-line', out)
+        } else if (rev) {
+          nodeDeco(block, el, true, 'hm-code-line', out)
+        } else {
+          nodeDeco(block, el, false, 'hm-diagram-hidden', out)
+          concealSpan(el, el.markers[0], out)
+        }
+        break
+
+      case 'diagramClose':
+        if (!ctx?.renderDiagram || rev) {
+          fenceCloseDecos(block, el, rev, out)
+        } else {
+          nodeDeco(block, el, false, 'hm-diagram-hidden', out)
+          concealSpan(el, el.markers[0], out)
+        }
         break
 
       case 'tableHeader':

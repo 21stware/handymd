@@ -198,6 +198,58 @@
   user-select: none;
 }
 
+/* ---- Diagram block（```mermaid）：Concealed 时源码整块隐藏 ----
+   开行承载图表 widget；体行 / 闭行折叠为零高（源码仍在文档里，序列化无损）。
+   Revealed（光标进入区域）时三种行都回到代码块样式。 */
+.handymd .hm-block.hm-diagram-hidden {
+  min-height: 0;
+  height: 0;
+  line-height: 0;
+  overflow: hidden;
+}
+.handymd .hm-block.hm-diagram-host {
+  min-height: 0;
+  line-height: 0;
+}
+.handymd .hm-diagram {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 2.4em;
+  line-height: 1.5;
+  background: var(--hm-codeblock-bg);
+  border-radius: 8px;
+  padding: 14px;
+  margin: 4px 0;
+  cursor: pointer; /* 点击进入源码编辑 */
+  user-select: none;
+  overflow-x: auto;
+}
+.handymd .hm-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+.handymd .hm-diagram-loading,
+.handymd .hm-diagram-empty {
+  color: var(--hm-fg-dim);
+  font-family: var(--hm-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.handymd .hm-diagram-empty {
+  border: 1px dashed var(--hm-quote-border);
+  background: transparent;
+}
+.handymd .hm-diagram-error {
+  color: var(--hm-code-fg);
+  font-family: var(--hm-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  justify-content: flex-start;
+  text-align: left;
+}
+
 /* 分隔线 */
 .handymd .hm-hr-line {
   position: relative;

@@ -57,6 +57,10 @@ export {
 export { highlightPlugin, highlightKey, createShikiHighlighter } from './highlight'
 export type { CodeHighlighter, HighlightSpan, ShikiHighlighterOptions } from './highlight'
 
+// 图表渲染（diagram block，如 ```mermaid）
+export { createDiagramRenderCallback, createMermaidRenderer } from './diagram'
+export type { DiagramRenderer, DiagramRenderCallback, MermaidRendererOptions } from './diagram'
+
 // L4
 export { Autosave } from './autosave'
 export type { AutosaveOptions, SaveStatus } from './autosave'
@@ -65,7 +69,7 @@ export type { AutosaveOptions, SaveStatus } from './autosave'
 export { schema } from './schema'
 export { markdownToDoc, docToMarkdown } from './markdown'
 export { parseInline, parseInlineCached } from './parse/inline'
-export { classifyLines } from './parse/blocks'
+export { classifyLines, diagramLangOf } from './parse/blocks'
 export type { LineInfo, LineType } from './parse/blocks'
 export { parseDoc } from './parse/docparse'
 export type { BlockMeta } from './parse/docparse'

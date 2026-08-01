@@ -266,6 +266,82 @@ check(
   await page.evaluate(() => document.getElementById('phase')?.textContent === 'ready'),
 )
 
+// ═══════════════════════════════════════════════════════════
+// 5. diagram block：mermaid 渲染 / 点击回源码 / 编辑后重渲染 / 错误态
+// ═══════════════════════════════════════════════════════════
+await reset(page)
+
+// Concealed：mermaid 渲染成 SVG，源码行折叠
+await page.waitForSelector('.hm-diagram svg', { timeout: 15_000 }).catch(() => {})
+check('mermaid diagram rendered as SVG', (await page.locator('.hm-diagram svg').count()) === 1)
+check(
+  'diagram source lines collapse to zero height',
+  await page.evaluate(() => {
+    const hidden = [...document.querySelectorAll('.hm-diagram-hidden')]
+    return hidden.length > 0 && hidden.every((el) => (el as HTMLElement).offsetHeight === 0)
+  }),
+)
+
+// 点击图表 → 整块回源码（fence 编辑态）
+await page.locator('.hm-diagram').click()
+await page.waitForTimeout(150)
+check('clicking diagram reveals fenced source', (await page.locator('.hm-diagram').count()) === 0)
+check(
+  'revealed diagram looks like a code fence',
+  await page.evaluate(() => {
+    const open = [...document.querySelectorAll('.hm-fence-open')]
+    return open.some((el) => (el.textContent ?? '').includes('mermaid'))
+  }),
+)
+
+// 编辑源码，光标离开 → 用新源码重渲染
+await page.keyboard.press('ArrowDown')
+await page.keyboard.press('End')
+await page.keyboard.press('Enter')
+await page.keyboard.type('    C[新节点] --> A')
+await page.locator('.hm-h1').first().click()
+await page.waitForSelector('.hm-diagram svg', { timeout: 15_000 }).catch(() => {})
+check(
+  'edited diagram re-renders with new source',
+  await page.evaluate(() => {
+    const svg = document.querySelector('.hm-diagram svg')
+    return !!svg && (svg.textContent ?? '').includes('新节点')
+  }),
+)
+
+// 语法错误 → 错误态（仍可点击进入修复）
+await page.evaluate(() => {
+  const pm = document.querySelector('.ProseMirror') as HTMLElement
+  pm.focus()
+  const sel = window.getSelection()!
+  const range = document.createRange()
+  range.selectNodeContents(pm)
+  range.collapse(false)
+  sel.removeAllRanges()
+  sel.addRange(range)
+})
+await page.keyboard.press('Enter')
+await page.keyboard.type('```mermaid')
+await page.keyboard.press('Enter')
+await page.keyboard.type('this is not a valid diagram !!!')
+await page.keyboard.press('Enter')
+await page.keyboard.type('```')
+await page.locator('.hm-h1').first().click()
+await page.waitForSelector('.hm-diagram-error', { timeout: 15_000 }).catch(() => {})
+check('invalid mermaid shows error state', (await page.locator('.hm-diagram-error').count()) === 1)
+
+// readOnly：图表保持渲染态，点击不进入编辑
+await page.locator('#toggle-readonly').click()
+await page.waitForTimeout(120)
+check('readOnly keeps diagram rendered', (await page.locator('.hm-diagram svg').count()) === 1)
+await page.locator('.hm-diagram').first().click()
+await page.waitForTimeout(120)
+check(
+  'readOnly click does not reveal diagram source',
+  (await page.locator('.hm-diagram svg').count()) === 1,
+)
+await page.locator('#toggle-readonly').click()
+
 await browser.close()
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)

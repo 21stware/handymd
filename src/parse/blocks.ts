@@ -1,6 +1,12 @@
 /**
  * 行级分类器：把每一行（= 一个 block 节点的 textContent）归入块级类型。
  * fence / table 是带跨行状态的结构，用小状态机处理；其余都是单行正则。
+ *
+ * 围栏块在结构化解析阶段就分成两类：
+ *   - code block    → fenceOpen / code / fenceClose
+ *   - diagram block → diagramOpen / diagramLine / diagramClose
+ * 判据是 info string 的首个 token 是否为图表语言（如 ```mermaid）。
+ * 两者共享同一套围栏状态机，仅产出的行类型不同。
  */
 
 import { isTableSeparator, looksLikeTableRow, parseTableRow } from './table'
@@ -17,11 +23,23 @@ export type LineInfo =
   | { t: 'fenceOpen'; tickStart: number; tickLen: number; info: string }
   | { t: 'fenceClose'; tickStart: number; tickLen: number }
   | { t: 'code' }
+  | { t: 'diagramOpen'; tickStart: number; tickLen: number; info: string; lang: string }
+  | { t: 'diagramClose'; tickStart: number; tickLen: number }
+  | { t: 'diagramLine' }
   | { t: 'tableHeader'; colCount: number }
   | { t: 'tableSep'; colCount: number }
   | { t: 'tableRow'; colCount: number }
 
 export type LineType = LineInfo['t']
+
+/** 视为 diagram block 的围栏语言（info string 首个 token，小写比较） */
+const DIAGRAM_LANGS = new Set(['mermaid'])
+
+/** info string → 图表语言；非图表围栏返回 null */
+export function diagramLangOf(info: string): string | null {
+  const lang = info.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
+  return DIAGRAM_LANGS.has(lang) ? lang : null
+}
 
 const FENCE_RE = /^( {0,3})(`{3,}|~{3,})(.*)$/
 const HEADING_RE = /^(#{1,6}) /
@@ -33,7 +51,7 @@ const ORDERED_RE = /^(\s*)(\d{1,9})[.)] /
 
 export function classifyLines(lines: readonly string[]): LineInfo[] {
   const out: LineInfo[] = []
-  let fence: { char: string; len: number } | null = null
+  let fence: { char: string; len: number; diagram: boolean } | null = null
   /** 表格状态：刚写出表头后等分隔行，或正在消费表体 */
   let table: null | { phase: 'sep' | 'body'; colCount: number } = null
 
@@ -43,10 +61,14 @@ export function classifyLines(lines: readonly string[]): LineInfo[] {
     if (fence) {
       const m = line.match(FENCE_RE)
       if (m && m[2][0] === fence.char && m[2].length >= fence.len && !m[3].trim()) {
-        out.push({ t: 'fenceClose', tickStart: m[1].length, tickLen: m[2].length })
+        out.push(
+          fence.diagram
+            ? { t: 'diagramClose', tickStart: m[1].length, tickLen: m[2].length }
+            : { t: 'fenceClose', tickStart: m[1].length, tickLen: m[2].length },
+        )
         fence = null
       } else {
-        out.push({ t: 'code' })
+        out.push(fence.diagram ? { t: 'diagramLine' } : { t: 'code' })
       }
       continue
     }
@@ -68,8 +90,14 @@ export function classifyLines(lines: readonly string[]): LineInfo[] {
 
     const open = line.match(FENCE_RE)
     if (open && !(open[2][0] === '`' && open[3].includes('`'))) {
-      fence = { char: open[2][0], len: open[2].length }
-      out.push({ t: 'fenceOpen', tickStart: open[1].length, tickLen: open[2].length, info: open[3].trim() })
+      const info = open[3].trim()
+      const lang = diagramLangOf(info)
+      fence = { char: open[2][0], len: open[2].length, diagram: lang !== null }
+      out.push(
+        lang !== null
+          ? { t: 'diagramOpen', tickStart: open[1].length, tickLen: open[2].length, info, lang }
+          : { t: 'fenceOpen', tickStart: open[1].length, tickLen: open[2].length, info },
+      )
       continue
     }
 

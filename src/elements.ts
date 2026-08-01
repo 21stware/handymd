@@ -23,6 +23,9 @@ export type BlockKind =
   | 'fenceOpen'
   | 'fenceClose'
   | 'codeLine'
+  | 'diagramOpen'
+  | 'diagramClose'
+  | 'diagramLine'
   | 'tableHeader'
   | 'tableSep'
   | 'tableRow'
@@ -47,6 +50,10 @@ export interface ElementAttrs {
   num?: number
   /** fence 的语言信息串 */
   info?: string
+  /** diagram 的图表语言（info string 首个 token，如 `mermaid`） */
+  lang?: string
+  /** diagram 的源码（围栏体各行以 \n 拼接，只挂在 diagramOpen 上） */
+  code?: string
   /** 表格列数 */
   colCount?: number
   /** 表格单元格列下标 */
