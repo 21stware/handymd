@@ -1,5 +1,5 @@
 /**
- * handymd —— Bear 风格的源码保真 Markdown 编辑器 SDK（基于 ProseMirror）。
+ * @21stware/handymd —— Bear 风格的源码保真 Markdown 编辑器 SDK（基于 ProseMirror）。
  *
  * 文档即 Markdown 源码；每个元素在 Concealed（渲染态）与 Revealed（源码态）
  * 之间由 selection 驱动切换。四层状态机：

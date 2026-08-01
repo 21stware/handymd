@@ -1,7 +1,7 @@
 {
-  "name": "handymd",
+  "name": "@21stware/handymd",
   "version": "0.1.0",
-  "description": "Bear-style source-fidelity Markdown editor SDK built on ProseMirror — the document IS the markdown source; markers are selectively concealed by cursor position.",
+  "description": "Bear-style source-fidelity Markdown editor SDK (@21stware/handymd) — the document IS the markdown source; markers are selectively concealed by cursor position.",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -17,7 +17,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs"
   ],
   "scripts": {
     "build": "bun run scripts/build.ts",
@@ -25,7 +26,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "bun --hot example/index.html",
     "e2e": "bun run scripts/e2e.ts",
-    "prepublishOnly": "bun run typecheck && bun test && bun run build"
+    "prepublishOnly": "bun run typecheck && bun test && bun run build",
+    "docs:check": "bun test && bun run typecheck"
   },
   "keywords": [
     "markdown",
@@ -61,5 +63,16 @@
     "shiki": {
       "optional": true
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/21stware/handymd.git"
+  },
+  "homepage": "https://github.com/21stware/handymd#readme",
+  "bugs": {
+    "url": "https://github.com/21stware/handymd/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
