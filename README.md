@@ -37,6 +37,7 @@ const editor = createEditor({
 
 editor.getMarkdown()
 editor.setMarkdown('# 新内容')
+editor.insertTable({ rows: 3, cols: 3 }) // GFM 表格请用编程式插入
 editor.setReadOnly(true)
 await editor.flush()
 await editor.destroy()
@@ -64,6 +65,7 @@ await editor.destroy()
 
 - `- ` → bullet，`- [ ] ` / `- [x] ` → checkbox，`> ` → 引用，`---` → 分隔线
 - 标题：源码 `#`/`##` 永远隐藏；**聚焦时**左侧 gutter 出层级图标
+- GFM 表格：`editor.insertTable()` 编程式创建（多行结构，无输入触发）；Tab 移格、Enter 加行
 - 行首 Backspace 去掉格式；空前缀行再 Enter 退出块
 
 **其它**
@@ -76,7 +78,7 @@ await editor.destroy()
 
 ```bash
 bun install
-bun test                 # 97 个单元测试（happy-dom）
+bun test                 # 单元测试（happy-dom）
 bun run typecheck
 bun run build            # dist/（ESM + d.ts + style.css）
 bun run dev              # example/ 演示

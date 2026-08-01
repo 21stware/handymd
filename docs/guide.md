@@ -162,6 +162,8 @@ createEditor({ mount, content, highlight })
   --hm-tag-bg: #ddf4ff;
   --hm-tag-fg: #0550ae;
   --hm-hr: #d0d7de;
+  --hm-table-border: #d0d7de;
+  --hm-table-header-bg: rgba(175, 184, 193, 0.2);
   --hm-selection: rgba(9, 105, 218, 0.2);
 }
 ```
@@ -210,6 +212,38 @@ createEditor({ mount, content, highlight })
 | `1. item` | 有序列表（自动重编号） |
 | `---` / `***` | 分隔线 |
 | \`\`\`lang | 代码块（可选 shiki） |
+| GFM 管道表格 | 见下方「表格」——请用编程式插入 |
+
+## 表格
+
+GFM 表格是多行结构（表头 + `| --- |` 分隔行 + 表体），不适合靠打字触发。
+请用编程式 API 创建；已存在的管道表格源码会被识别并渲染。
+
+```ts
+// 推荐：HandyEditor 实例方法
+editor.insertTable({ rows: 3, cols: 3 })
+editor.insertTable({ rows: 4, cols: 2, headers: ['Name', 'Note'] })
+
+// 或 ProseMirror Command（自建 EditorView 时）
+import { insertTable, buildTableMarkdown } from '@21stware/handymd'
+insertTable({ rows: 3, cols: 3 })(view.state, view.dispatch)
+```
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `rows` | `3` | 总行数（含表头） |
+| `cols` | `3` | 列数 |
+| `withHeaderRow` | `true` | 是否生成表头行 |
+| `headers` | — | 可选表头文案 |
+
+快捷键（光标在表格内时）：
+
+| 快捷键 | 行为 |
+|---|---|
+| `Tab` / `Shift+Tab` | 下一格 / 上一格 |
+| `Enter` | 在下方插入空表体行 |
+
+源码仍是标准 GFM（`getMarkdown()` 无损）。分隔行在视图中折叠，由表头加粗底边表达。
 
 ## 自建 EditorView（不用 createEditor）
 

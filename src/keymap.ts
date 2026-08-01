@@ -6,6 +6,11 @@ import { schema } from './schema'
 import { concealKey } from './conceal/plugin'
 import { permanentPrefixAt } from './caret'
 import type { LineInfo } from './parse/blocks'
+import {
+  continueTableRow,
+  goToNextTableCell,
+  goToPrevTableCell,
+} from './table'
 
 /**
  * 源码模型下大部分 input rule 都是多余的 —— 输入 `## ` 本身就会被解析成标题。
@@ -156,12 +161,14 @@ export const backspaceBlockFormat: Command = (state, dispatch) => {
   if (!hit) return false
   const m = hit.el.markers[0]
 
-  if (hit.el.kind === 'hr') {
+  if (hit.el.kind === 'hr' || hit.el.kind === 'tableSep') {
     if (dispatch) {
       dispatch(state.tr.delete(hit.block.pos + 1, hit.block.pos + 1 + hit.block.text.length))
     }
     return true
   }
+  // 表格行：管道不是可退格去掉的"前缀"，交给默认删除
+  if (hit.el.kind === 'tableHeader' || hit.el.kind === 'tableRow') return false
   if ($from.pos !== m.to) return false
   if (dispatch) dispatch(state.tr.delete(m.from, m.to))
   return true
@@ -209,7 +216,8 @@ export const dedentListItem: Command = (state, dispatch) => {
 
 export function markdownKeymap(): Plugin {
   return keymap({
-    Enter: continueListItem,
+    Enter: (state, dispatch, view) =>
+      continueTableRow(state, dispatch, view) || continueListItem(state, dispatch, view),
     Backspace: backspaceBlockFormat,
     ArrowLeft: arrowLeftSkipPrefix,
     'Mod-b': toggleInline('**'),
@@ -217,7 +225,9 @@ export function markdownKeymap(): Plugin {
     'Mod-e': toggleInline('`'),
     'Mod-Shift-x': toggleInline('~~'),
     'Mod-Shift-h': toggleInline('=='),
-    Tab: indentListItem,
-    'Shift-Tab': dedentListItem,
+    Tab: (state, dispatch, view) =>
+      goToNextTableCell(state, dispatch, view) || indentListItem(state, dispatch, view),
+    'Shift-Tab': (state, dispatch, view) =>
+      goToPrevTableCell(state, dispatch, view) || dedentListItem(state, dispatch, view),
   })
 }

@@ -16,6 +16,8 @@
   --hm-tag-bg: #efe9df;
   --hm-tag-fg: #8a7d68;
   --hm-hr: #e2dccf;
+  --hm-table-border: #e2dccf;
+  --hm-table-header-bg: rgba(135, 131, 120, 0.08);
   --hm-selection: rgba(201, 96, 60, 0.18);
 }
 
@@ -206,6 +208,73 @@
   margin: 0.7em 0;
   display: inline-block;
   width: 100%;
+}
+
+/* 表格：每行一个 block，用 flex 把单元格排成列；管道符脱出文档流 */
+.handymd .hm-table.hm-table-header,
+.handymd .hm-table.hm-table-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  border-left: 1px solid var(--hm-table-border);
+  border-right: 1px solid var(--hm-table-border);
+  border-bottom: 1px solid var(--hm-table-border);
+  min-height: 1.75em;
+  padding: 0;
+  margin: 0;
+}
+.handymd .hm-table.hm-table-header {
+  font-weight: 600;
+  background: var(--hm-table-header-bg);
+  border-top: 1px solid var(--hm-table-border);
+  border-bottom: 2px solid var(--hm-table-border);
+}
+.handymd .hm-table.hm-table-first,
+.handymd .hm-table.hm-table-only {
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  margin-top: 0.5em;
+}
+.handymd .hm-table.hm-table-last,
+.handymd .hm-table.hm-table-only {
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  margin-bottom: 0.5em;
+}
+.handymd .hm-table-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 10px;
+  box-sizing: border-box;
+}
+.handymd .hm-table-cell[data-col]:not([data-col='0']) {
+  border-left: 1px solid var(--hm-table-border);
+}
+/* 管道符：绝对定位脱出 flex，避免占一列 */
+.handymd .hm-table-pipe {
+  position: absolute;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  font-size: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  pointer-events: none;
+}
+/* 分隔行：完全折叠，由表头加粗底边表达 */
+.handymd .hm-table.hm-table-sep {
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* 只读态光标 */
