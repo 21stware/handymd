@@ -99,7 +99,9 @@ const html = htmlTemplate.replace(
   [
     `<base href="${base}" />`,
     mermaidImportMap,
+    // Theme tokens must load after SDK CSS so .editor-mount.handymd wins cascade.
     `<link rel="stylesheet" href="handymd.css" />`,
+    `<link rel="stylesheet" href="styles.css" />`,
     `<link rel="modulepreload" href="${jsEntry}" />`,
     `<script type="module" src="${jsEntry}"></script>`,
   ].join('\n    '),

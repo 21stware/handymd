@@ -1,12 +1,11 @@
 /**
  * Immersive writing shell — one continuous surface, system light/dark.
- * No settings chrome, no card/frame, modern mono for CJK + Latin.
+ * Mount node is both .editor-mount and .handymd — use compound selectors.
  */
 
 :root {
   color-scheme: light dark;
 
-  /* Light — warm stone, ink with clear contrast */
   --paper: #f3f1ec;
   --ink: #1a1816;
   --ink-soft: #6e6860;
@@ -26,11 +25,11 @@
   --content-width: 720px;
 
   --app-hm-fg: #1f1c19;
-  --app-hm-fg-dim: #8a847a;
-  --app-hm-marker: #b0a89c;
+  --app-hm-fg-dim: #7a746a;
+  --app-hm-marker: #a8a094;
   --app-hm-accent: #c24b2f;
   --app-hm-code-fg: #a63a24;
-  --app-hm-code-bg: rgba(26, 24, 22, 0.06);
+  --app-hm-code-bg: rgba(26, 24, 22, 0.07);
   --app-hm-codeblock-bg: #ebe7df;
   --app-hm-quote-border: #cfc7ba;
   --app-hm-quote-fg: #5c564e;
@@ -44,31 +43,30 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Dark — charcoal with warm undertone, high diagram contrast */
     --paper: #141312;
     --ink: #ece7df;
-    --ink-soft: #9a9388;
-    --accent: #e07a55;
+    --ink-soft: #a49c90;
+    --accent: #e08a66;
     --line: #2c2925;
     --status-bg: color-mix(in srgb, var(--paper) 88%, transparent);
     --diagram-bg: #1c1a17;
     --diagram-ink: #f2eee6;
 
     --app-hm-fg: #ece7df;
-    --app-hm-fg-dim: #8f887c;
-    --app-hm-marker: #6a645c;
-    --app-hm-accent: #e07a55;
-    --app-hm-code-fg: #f0a090;
-    --app-hm-code-bg: rgba(255, 248, 240, 0.08);
+    --app-hm-fg-dim: #9a9388;
+    --app-hm-marker: #6f6860;
+    --app-hm-accent: #e08a66;
+    --app-hm-code-fg: #f0a898;
+    --app-hm-code-bg: rgba(255, 244, 230, 0.08);
     --app-hm-codeblock-bg: #1c1a17;
-    --app-hm-quote-border: #3f3a34;
-    --app-hm-quote-fg: #b8b0a4;
-    --app-hm-tag-bg: #2a2722;
-    --app-hm-tag-fg: #c4bdb2;
-    --app-hm-hr: #322e29;
-    --app-hm-table-border: #322e29;
-    --app-hm-table-header-bg: rgba(255, 248, 240, 0.05);
-    --app-hm-selection: rgba(224, 122, 85, 0.28);
+    --app-hm-quote-border: #4a443c;
+    --app-hm-quote-fg: #c4bdb2;
+    --app-hm-tag-bg: #2a2621;
+    --app-hm-tag-fg: #d2cbc0;
+    --app-hm-hr: #3a3530;
+    --app-hm-table-border: #3a3530;
+    --app-hm-table-header-bg: rgba(255, 244, 230, 0.05);
+    --app-hm-selection: rgba(224, 138, 102, 0.3);
   }
 }
 
@@ -115,6 +113,11 @@ button {
   min-height: 40vh;
 }
 
+/*
+ * createEditor adds .handymd on the mount node itself.
+ * `.editor-mount .handymd` (descendant) never matched — dark tokens never applied.
+ */
+.editor-mount.handymd,
 .editor-mount .handymd {
   --hm-font: var(--font);
   --hm-mono: var(--mono);
@@ -133,9 +136,11 @@ button {
   --hm-table-border: var(--app-hm-table-border);
   --hm-table-header-bg: var(--app-hm-table-header-bg);
   --hm-selection: var(--app-hm-selection);
+  color: var(--app-hm-fg);
   min-height: 40vh;
 }
 
+.editor-mount.handymd .ProseMirror,
 .editor-mount .handymd .ProseMirror {
   max-width: none;
   margin: 0;
@@ -143,23 +148,73 @@ button {
   padding: 0 8px 0 52px;
   font-size: var(--font-size);
   line-height: var(--line-height);
+  color: var(--hm-fg);
 }
 
-/* Diagram: same surface family, stronger contrast for SVG strokes/text */
+/* Code / fence: same family as paper, not a white floating card */
+.editor-mount.handymd .hm-code-line,
+.editor-mount.handymd .hm-fence-line,
+.editor-mount .handymd .hm-code-line,
+.editor-mount .handymd .hm-fence-line {
+  background: var(--hm-codeblock-bg);
+}
+
+.editor-mount.handymd .hm-fence-open,
+.editor-mount .handymd .hm-fence-open {
+  border-radius: 8px 8px 0 0;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.editor-mount.handymd .hm-fence-close,
+.editor-mount .handymd .hm-fence-close {
+  border-radius: 0 0 8px 8px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.editor-mount.handymd .hm-code-line:not(.hm-fence-open):not(.hm-fence-close),
+.editor-mount .handymd .hm-code-line:not(.hm-fence-open):not(.hm-fence-close) {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.editor-mount.handymd .hm-code-lang,
+.editor-mount .handymd .hm-code-lang {
+  color: var(--hm-fg-dim);
+}
+
+.editor-mount.handymd .hm-tag,
+.editor-mount .handymd .hm-tag {
+  background: var(--hm-tag-bg);
+  color: var(--hm-tag-fg);
+  border-radius: 4px;
+}
+
+.editor-mount.handymd .hm-link,
+.editor-mount .handymd .hm-link {
+  color: var(--hm-accent);
+  text-decoration-color: color-mix(in srgb, var(--hm-accent) 50%, transparent);
+}
+
+.editor-mount.handymd .hm-diagram,
 .editor-mount .handymd .hm-diagram {
   background: var(--diagram-bg);
   color: var(--diagram-ink);
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
   padding: 18px;
+  box-shadow: none;
 }
 
+.editor-mount.handymd .hm-diagram svg,
 .editor-mount .handymd .hm-diagram svg {
   max-width: 100%;
   height: auto;
   color: var(--diagram-ink);
 }
 
+.editor-mount.handymd .hm-diagram svg text,
+.editor-mount.handymd .hm-diagram svg .nodeLabel,
+.editor-mount.handymd .hm-diagram svg .edgeLabel,
+.editor-mount.handymd .hm-diagram svg .label,
 .editor-mount .handymd .hm-diagram svg text,
 .editor-mount .handymd .hm-diagram svg .nodeLabel,
 .editor-mount .handymd .hm-diagram svg .edgeLabel,
@@ -168,6 +223,7 @@ button {
   color: var(--diagram-ink) !important;
 }
 
+.editor-mount.handymd .hm-diagram-empty,
 .editor-mount .handymd .hm-diagram-empty {
   border-color: color-mix(in srgb, var(--ink) 18%, transparent);
   color: var(--ink-soft);
@@ -182,7 +238,7 @@ button {
   max-width: min(70vw, 360px);
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
   background: var(--status-bg);
   color: var(--ink-soft);
   font-size: 12px;
@@ -219,7 +275,6 @@ button {
   }
 }
 
-/* Faint corner actions — no brand bar, no shortcut legends */
 .corner-chrome {
   position: fixed;
   top: calc(10px + env(safe-area-inset-top));
@@ -253,7 +308,7 @@ button {
 .ghost-btn:hover,
 .ghost-btn:focus-visible {
   color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
   outline: none;
 }
 
@@ -315,6 +370,7 @@ button {
     padding: 8vh 16px 40vh 0;
   }
 
+  .editor-mount.handymd .ProseMirror,
   .editor-mount .handymd .ProseMirror {
     padding-left: 40px;
   }
