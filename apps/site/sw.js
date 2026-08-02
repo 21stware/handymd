@@ -2,10 +2,13 @@
  * The installable Markdown editor PWA lives under ./app/ with its own SW.
  * Do not intercept /app/* — leave those to the editor service worker.
  */
-const CACHE = 'handymd-site-shell-v2'
-
-// Precache only the site shell; hashed assets are cached on demand.
+/* BUILD_ID and PRECACHE are rewritten by scripts/build.ts — the entry and chunk
+ * hashes only exist after bundling, and a shell-only precache leaves the site
+ * depending on the browser HTTP cache for its own JS. Literals are dev fallbacks. */
+const BUILD_ID = 'dev'
 const PRECACHE = ['./', './index.html', './styles.css', './docs.css', './favicon.svg']
+
+const CACHE = `handymd-site-shell-${BUILD_ID}`
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -38,16 +41,20 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return
   if (isEditorAppPath(url)) return
 
-  // Navigation: network-first, fall back to cached shell
+  // Navigation: network-first, fall back to the page itself and only then the
+  // landing shell. Caching under a fixed './index.html' key would let a docs
+  // page overwrite the landing page, so store responses under their own URL.
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone()
-          void caches.open(CACHE).then((c) => c.put('./index.html', copy))
+          if (res.ok) {
+            const copy = res.clone()
+            void caches.open(CACHE).then((c) => c.put(req, copy))
+          }
           return res
         })
-        .catch(() => caches.match('./index.html')),
+        .catch(async () => (await caches.match(req)) ?? (await caches.match('./index.html')) ?? Response.error()),
     )
     return
   }
@@ -63,7 +70,8 @@ self.addEventListener('fetch', (event) => {
           }
           return res
         })
-        .catch(() => cached)
+        // respondWith(undefined) throws; surface a real network error instead
+        .catch(() => cached ?? Response.error())
       return cached || network
     }),
   )

@@ -70,7 +70,6 @@ for (const leftover of ['main.css']) {
 await cp('styles.css', join(outdir, 'styles.css'))
 await cp('docs.css', join(outdir, 'docs.css'))
 await cp('favicon.svg', join(outdir, 'favicon.svg'))
-await cp('sw.js', join(outdir, 'sw.js'))
 // Site is a documentation landing page — not an installable editor PWA.
 // (The pure editor lives at ./app/ and carries the real webmanifest + file_handlers.)
 
@@ -105,25 +104,77 @@ await writeFile(join(outdir, 'index.html'), html)
 await writeFile(join(outdir, '404.html'), html)
 
 // ——— 5) Docs: render packages/handymd/docs/*.md → dist/docs/*.html ———
+// Reading order, not alphabetical: guide is the entry point. Unlisted docs keep
+// their alphabetical position after these.
+const DOC_ORDER = ['guide', 'api', 'architecture']
 const docFiles = (await readdir(DOCS_DIR)).filter((f) => f.endsWith('.md')).sort()
-const docMeta: { slug: string; title: string; href: string }[] = []
+const orderOf = (slug: string): number => {
+  const i = DOC_ORDER.indexOf(slug)
+  return i === -1 ? DOC_ORDER.length : i
+}
 
-for (const file of docFiles) {
-  const slug = basename(file, '.md')
-  const md = await readFile(join(DOCS_DIR, file), 'utf8')
-  const { html: body, toc } = renderMarkdown(md)
-  const title = extractTitle(md) ?? slug
-  docMeta.push({ slug, title, href: `docs/${slug}.html` })
+const docs = await Promise.all(
+  docFiles.map(async (file) => {
+    const slug = basename(file, '.md')
+    const md = await readFile(join(DOCS_DIR, file), 'utf8')
+    const { html: body, toc } = renderMarkdown(md)
+    return { slug, title: extractTitle(md) ?? slug, href: `docs/${slug}.html`, body, toc }
+  }),
+)
+docs.sort((a, b) => orderOf(a.slug) - orderOf(b.slug) || a.slug.localeCompare(b.slug))
 
+// The sidebar lists every doc, so it has to be complete before any page renders.
+const docMeta = docs.map(({ slug, title, href }) => ({ slug, title, href }))
+
+for (const { slug, title, body, toc } of docs) {
   const page = renderDocPage({ title, slug, body, toc, base, docs: docMeta })
   await writeFile(join(outdir, 'docs', `${slug}.html`), page)
 }
 
-// Docs index redirect → guide (first doc)
+// Docs index redirect → guide. Hrefs are page-relative ("docs/x.html") and this
+// file already lives in docs/, so it needs the bare file name.
 if (docMeta.length) {
-  const indexHtml = `<!doctype html><meta http-equiv="refresh" content="0; url=${escapeAttr(docMeta[0]!.href)}"><link rel="canonical" href="${escapeAttr(docMeta[0]!.href)}">`
+  const first = basename(docMeta[0]!.href)
+  const indexHtml = `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=${escapeAttr(first)}"><link rel="canonical" href="${escapeAttr(first)}"><title>handymd 文档</title>`
   await writeFile(join(outdir, 'docs', 'index.html'), indexHtml)
 }
+
+// ——— 5b) Service worker: precache the real bundle, not just the shell ———
+// Entry/chunk names only exist after bundling. Note the site SW deliberately
+// ignores ./app/* — that subtree has its own worker.
+const siteChunks = names
+  .filter((n) => n.endsWith('.js') && n !== jsEntry)
+  .map((n) => `./chunks/${n}`)
+const sitePrecache = [
+  './',
+  './index.html',
+  './styles.css',
+  './docs.css',
+  './favicon.svg',
+  // lazily <link>ed when the playground mounts — offline it must already be there
+  './handymd.css',
+  `./${jsEntry}`,
+  ...siteChunks,
+  ...docMeta.map((d) => `./${d.href}`),
+]
+
+const siteHasher = new Bun.CryptoHasher('sha256')
+for (const rel of sitePrecache) {
+  const path = join(outdir, rel === './' ? 'index.html' : rel.replace(/^\.\//, ''))
+  const file = Bun.file(path)
+  if (await file.exists()) siteHasher.update(new Uint8Array(await file.arrayBuffer()))
+}
+const siteBuildId = siteHasher.digest('hex').slice(0, 12)
+
+const siteSwSrc = await readFile('sw.js', 'utf8')
+const siteSwOut = siteSwSrc
+  .replace(/^const BUILD_ID = .*$/m, `const BUILD_ID = ${JSON.stringify(siteBuildId)}`)
+  .replace(/^const PRECACHE = \[[\s\S]*?\]$/m, `const PRECACHE = ${JSON.stringify(sitePrecache)}`)
+if (!siteSwOut.includes(siteBuildId) || !siteSwOut.includes(`./${jsEntry}`)) {
+  console.error('site build: failed to inject precache into sw.js')
+  process.exit(1)
+}
+await writeFile(join(outdir, 'sw.js'), siteSwOut)
 
 // ——— 6) Embed pure editor PWA at ./app/ (same Pages artifact) ———
 // BASE for the app is site base + "app/" e.g. /handymd/app/
@@ -236,13 +287,14 @@ function renderDocPage(input: DocPageInput): string {
   <body>
     <div class="docs-page">
       <header class="docs-nav">
-        <a class="brand" href="../"><span class="brand-mark" aria-hidden="true">h</span><span>handymd</span></a>
+        <!-- <base> is the site root, so these are base-relative, not page-relative -->
+        <a class="brand" href="./"><span class="brand-mark" aria-hidden="true">h</span><span>handymd</span></a>
         <nav class="nav-links">
-          <a href="../#features">特性</a>
-          <a href="../#playground">试写</a>
-          <a href="guide.html" class="is-active">文档</a>
-          <a href="../app/">编辑器</a>
-          <a href="../#install">接入 SDK</a>
+          <a href="./#features">特性</a>
+          <a href="./#playground">试写</a>
+          <a href="docs/guide.html" class="is-active">文档</a>
+          <a href="app/">编辑器</a>
+          <a href="./#install">接入 SDK</a>
         </nav>
         <span class="nav-spacer"></span>
         <a class="github-link" href="https://github.com/21stware/handymd" target="_blank" rel="noopener noreferrer">GitHub</a>
