@@ -217,11 +217,12 @@ export function buildBlockDecos(
 
       case 'heading': {
         // `#`/`##` 源码永远隐藏；聚焦（rev）时在 gutter 展示层级图标（非源码）。
-        // 末尾空格做 caret-pad，避免内容起点光标紧贴 font-size:0 消失。
+        // 仅空标题保留末尾空格作 caret-pad；有内容时整段前缀 font-size:0，避免标题前多一格空白。
         const level = el.attrs?.level ?? 1
         const empty = !el.content || el.content.from >= el.content.to
         nodeDeco(block, el, rev, `hm-heading hm-h${level}${empty ? ' hm-heading-empty' : ''}`, out)
-        concealMarkersWithCaretPad(el, out)
+        if (empty) concealMarkersWithCaretPad(el, out)
+        else markerDecos(el, false, out)
         if (rev) {
           const at = el.markers[0].to
           widget(

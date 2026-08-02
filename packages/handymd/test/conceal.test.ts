@@ -47,9 +47,9 @@ describe('conceal/reveal state machine (L3)', () => {
     expect(markersAway.every((d) => (d.spec as Spec).concealed)).toBe(true)
   })
 
-  test('concealed prefixes keep a caret-pad so the cursor stays visible', () => {
-    // 标题 / 引用 前缀末尾都有 caret-pad（含有内容时也需要，否则行首光标贴 font-size:0 消失）
-    for (const md of ['# ', '# Title', '> quoted']) {
+  test('empty heading / quote keep a caret-pad; non-empty heading does not', () => {
+    // 空标题、引用：前缀末尾 caret-pad，避免行首光标贴 font-size:0 消失
+    for (const md of ['# ', '> quoted']) {
       const state = mkState(md)
       const pads = concealKey.getState(state)!.set.find(
         undefined,
@@ -58,6 +58,14 @@ describe('conceal/reveal state machine (L3)', () => {
       )
       expect(pads.length).toBeGreaterThanOrEqual(1)
     }
+    // 有内容的标题：整段 `# ` 隐藏，不留透明空格（否则标题前多一格空白）
+    const titled = mkState('# Title')
+    const titledPads = concealKey.getState(titled)!.set.find(
+      undefined,
+      undefined,
+      (spec) => (spec as Spec & { caretPad?: boolean }).caretPad === true,
+    )
+    expect(titledPads.length).toBe(0)
   })
 
   test('cursor elsewhere conceals heading and strong', () => {
