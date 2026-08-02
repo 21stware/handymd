@@ -61,6 +61,7 @@ for (const leftover of ['main.css']) {
 // ——— 2) Static assets ———
 await cp('styles.css', join(outdir, 'styles.css'))
 await cp('favicon.svg', join(outdir, 'favicon.svg'))
+await cp('logo.svg', join(outdir, 'logo.svg'))
 
 // Manifest: pin id/start_url/scope to the deploy BASE so nested Pages paths work.
 const manifest = JSON.parse(await readFile('manifest.webmanifest', 'utf8')) as {
@@ -109,6 +110,7 @@ const precache = [
   './styles.css',
   './manifest.webmanifest',
   './favicon.svg',
+  './logo.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
   `./${jsEntry}`,

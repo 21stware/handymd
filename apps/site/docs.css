@@ -1,6 +1,7 @@
 .docs-page{min-height:100vh}
 .docs-nav{position:sticky;top:0;z-index:30;height:64px;display:flex;align-items:center;gap:28px;padding:0 clamp(18px,4vw,58px);border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--paper) 90%,transparent);backdrop-filter:blur(18px)}
-.docs-nav .brand{margin-right:auto}
+.docs-nav .brand{margin-right:auto;display:inline-flex;align-items:center;gap:10px;text-decoration:none;font-weight:700;color:var(--ink)}
+.docs-nav .brand-mark{width:26px;height:26px;border-radius:7px;display:block}
 .docs-nav .nav-links{margin:0}.docs-nav .nav-links a{font-size:12px}
 .docs-nav .nav-links a.is-active{color:var(--accent)}
 .docs-nav .github-link{font-family:var(--mono);font-size:10px;text-decoration:none;color:var(--ink-soft)}

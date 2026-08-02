@@ -70,6 +70,7 @@ for (const leftover of ['main.css']) {
 await cp('styles.css', join(outdir, 'styles.css'))
 await cp('docs.css', join(outdir, 'docs.css'))
 await cp('favicon.svg', join(outdir, 'favicon.svg'))
+await cp('logo.svg', join(outdir, 'logo.svg'))
 // Site is a documentation landing page — not an installable editor PWA.
 // (The pure editor lives at ./app/ and carries the real webmanifest + file_handlers.)
 
@@ -151,6 +152,7 @@ const sitePrecache = [
   './styles.css',
   './docs.css',
   './favicon.svg',
+  './logo.svg',
   // lazily <link>ed when the playground mounts — offline it must already be there
   './handymd.css',
   `./${jsEntry}`,
@@ -286,7 +288,7 @@ function renderDocPage(input: DocPageInput): string {
     <div class="docs-page">
       <header class="docs-nav">
         <!-- <base> is the site root, so these are base-relative, not page-relative -->
-        <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span><span>handymd</span></a>
+        <a class="brand" href="./"><img class="brand-mark" src="logo.svg" width="28" height="28" alt="" /><span>handymd</span></a>
         <nav class="nav-links">
           <a href="./#philosophy">理念</a>
           <a href="./#playground">试写</a>

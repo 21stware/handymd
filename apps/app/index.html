@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Untitled</title>
     <meta name="description" content="handymd — source-fidelity Markdown writing." />
-    <meta name="theme-color" content="#f4f1ea" />
+    <meta name="theme-color" content="#f7f4ee" />
     <meta name="color-scheme" content="light" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -17,51 +17,46 @@
   <body>
     <header class="app-bar">
       <a class="app-brand" href="../" aria-label="返回 handymd 官网">
-        <span class="brand-mark" aria-hidden="true">h</span>
-        <span>handymd</span>
+        <img class="brand-mark" src="logo.svg" width="28" height="28" alt="" />
+        <span class="brand-text">handymd</span>
       </a>
-      <div class="document-state">
+
+      <div class="document-state" title="未保存时点会变色">
         <span class="state-dot" id="state-dot" data-status="clean"></span>
         <span class="document-name" id="document-name">Untitled.md</span>
         <span class="document-meta" id="document-meta">unsaved</span>
       </div>
+
       <div class="app-actions">
         <button type="button" class="tool-btn secondary-action" id="new-btn" title="新建 (⌘N)">新建</button>
         <button type="button" class="tool-btn" id="open-btn" title="打开 (⌘O)">打开</button>
         <button type="button" class="tool-btn primary" id="save-btn" title="保存 (⌘S)">保存</button>
+        <button
+          type="button"
+          class="settings-btn"
+          id="settings-btn"
+          aria-label="设置"
+          aria-expanded="false"
+          aria-controls="settings-panel"
+          title="设置 (⌘,)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+            />
+          </svg>
+        </button>
       </div>
     </header>
 
     <div class="scroll-root" id="scroll-root">
-      <main class="workspace">
-        <div class="page" id="page">
-          <div class="page-ruler" aria-hidden="true"><span>MARKDOWN</span><span>LOCAL FIRST</span></div>
-          <div id="editor" class="editor-mount" aria-label="Markdown editor"></div>
-        </div>
-      </main>
-      <div class="workspace-caption" aria-hidden="true">
-        <span>YOUR WORDS</span><span>YOUR SOURCE</span>
+      <div class="page" id="page">
+        <div id="editor" class="editor-mount" aria-label="Markdown editor"></div>
       </div>
     </div>
 
     <div id="status" class="status" hidden aria-live="polite"></div>
-
-    <button
-      type="button"
-      class="settings-btn"
-      id="settings-btn"
-      aria-label="设置"
-      aria-expanded="false"
-      aria-controls="settings-panel"
-      title="设置 (⌘,)"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-        <circle cx="12" cy="12" r="3" />
-        <path
-          d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
-        />
-      </svg>
-    </button>
 
     <div class="settings-backdrop" id="settings-backdrop" hidden></div>
     <div
@@ -72,10 +67,7 @@
       aria-labelledby="settings-title"
       hidden
     >
-      <div class="settings-heading">
-        <span>Writing preferences</span>
-        <h2 id="settings-title">偏好设置</h2>
-      </div>
+      <h2 id="settings-title">偏好设置</h2>
 
       <div class="settings-row">
         <label for="set-theme">主题</label>
@@ -121,7 +113,7 @@
     </div>
 
     <div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true">
-      <div class="drop-card">Drop to open</div>
+      <div class="drop-card">放开以打开 Markdown</div>
     </div>
 
     <input
