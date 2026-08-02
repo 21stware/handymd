@@ -263,55 +263,59 @@
 }
 
 /* 表格：Concealed 用 widget（.hm-table-visual）画列；源码行折叠。
-   不能在源码 inline span 上做 flex —— PM 会把重叠 deco（如 link）合并成平铺片段拆列。 */
+   每行是独立 block，边框必须拼成「一张表」——禁止行间空隙与双边线。 */
 .handymd .hm-table.hm-table-rendered {
   position: relative;
-  min-height: 0;
+  min-height: 0 !important;
   line-height: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none;
 }
 .handymd .hm-table.hm-table-first,
 .handymd .hm-table.hm-table-only {
-  margin-top: 0.5em;
+  margin-top: 0.75em !important;
 }
 .handymd .hm-table.hm-table-last,
 .handymd .hm-table.hm-table-only {
-  margin-bottom: 0.5em;
+  margin-bottom: 0.75em !important;
 }
 .handymd .hm-table-visual {
   display: flex;
   align-items: stretch;
   width: 100%;
   box-sizing: border-box;
-  border-left: 1px solid var(--hm-table-border);
-  border-right: 1px solid var(--hm-table-border);
-  border-bottom: 1px solid var(--hm-table-border);
   min-height: 1.75em;
   line-height: 1.75;
   padding: 0;
   margin: 0;
+  /* 单线网格：上边叠进上一行底边，避免双线 / 镂空层 */
+  margin-top: -1px;
+  border: 1px solid var(--hm-table-border);
+  background: transparent;
+  border-radius: 0;
   cursor: text;
   user-select: none;
 }
 .handymd .hm-table-first .hm-table-visual,
 .handymd .hm-table-only .hm-table-visual {
-  border-top: 1px solid var(--hm-table-border);
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
+  margin-top: 0;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
 }
 .handymd .hm-table-last .hm-table-visual,
 .handymd .hm-table-only .hm-table-visual {
-  border-bottom-left-radius: 6px;
-  border-bottom-right-radius: 6px;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
 .handymd .hm-table-visual-header {
   font-weight: 600;
   background: var(--hm-table-header-bg);
-  border-bottom: 2px solid var(--hm-table-border);
 }
 .handymd .hm-table-visual .hm-table-cell {
   flex: 1 1 0;
   min-width: 0;
-  padding: 4px 10px;
+  padding: 8px 12px;
   box-sizing: border-box;
   overflow-wrap: anywhere;
 }
@@ -325,17 +329,20 @@
   font-family: var(--hm-mono);
   font-size: 0.92em;
 }
-/* 分隔行：完全折叠，由表头加粗底边表达 */
+/* 分隔行：彻底从布局中拿走，否则会在表头与首行间顶出空隙 */
 .handymd .hm-table.hm-table-sep {
+  display: block !important;
   height: 0 !important;
   min-height: 0 !important;
   max-height: 0 !important;
+  line-height: 0 !important;
   overflow: hidden !important;
   padding: 0 !important;
   margin: 0 !important;
   border: none !important;
   opacity: 0;
   pointer-events: none;
+  font-size: 0 !important;
 }
 
 /* 只读态光标 */
