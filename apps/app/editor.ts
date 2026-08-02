@@ -5,7 +5,7 @@
  *   open / save / save-as / new / drag-drop / OS file_handlers
  */
 import { TextSelection } from 'prosemirror-state'
-import { createEditor, type HandyEditor } from '@21stware/handymd'
+import { createEditor, createMermaidRenderer, type HandyEditor } from '@21stware/handymd'
 import '@21stware/handymd/style.css'
 
 export type AppEditorApi = {
@@ -53,9 +53,37 @@ export async function mountAppEditor(
   let fileName = DEFAULT_NAME
   let readOnly = false
 
+  const dark = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
   const editor = createEditor({
     mount,
     content: BLANK,
+    // Follow system scheme so diagram strokes/labels stay readable.
+    diagram: createMermaidRenderer({
+      theme: dark ? 'dark' : 'neutral',
+      config: {
+        themeVariables: dark
+          ? {
+              background: '#1c1a17',
+              primaryColor: '#2a2621',
+              primaryTextColor: '#f2eee6',
+              primaryBorderColor: '#8a8378',
+              lineColor: '#c4bdb2',
+              secondaryColor: '#24201c',
+              tertiaryColor: '#1c1a17',
+              fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',
+            }
+          : {
+              background: '#ebe7df',
+              primaryColor: '#f7f4ee',
+              primaryTextColor: '#1a1816',
+              primaryBorderColor: '#6e6860',
+              lineColor: '#5c564e',
+              secondaryColor: '#e5e0d6',
+              tertiaryColor: '#ebe7df',
+              fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',
+            },
+      },
+    }),
     onChange: () => hooks.onSaveStatus?.('dirty'),
     onOpenLink: (href) => {
       window.open(href, '_blank', 'noopener,noreferrer')

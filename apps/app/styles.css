@@ -1,41 +1,75 @@
 /**
- * Immersive writing shell — Typora / Bear style.
- * No persistent app chrome. Paper fills the viewport.
- * Corner actions fade in only when the pointer is near them.
+ * Immersive writing shell — one continuous surface, system light/dark.
+ * No settings chrome, no card/frame, modern mono for CJK + Latin.
  */
 
 :root {
-  color-scheme: light;
-  --paper: #f7f4ee;
-  --paper-deep: #ebe6dc;
-  --ink: #1c1a17;
-  --ink-soft: #8a8378;
-  --accent: #c65335;
-  --line: #e2dcd0;
-  --card: #fffdf9;
-  --status-bg: rgba(255, 253, 249, 0.92);
-  --ui-font: "Avenir Next", Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font: var(--ui-font);
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light dark;
+
+  /* Light — warm stone, ink with clear contrast */
+  --paper: #f3f1ec;
+  --ink: #1a1816;
+  --ink-soft: #6e6860;
+  --accent: #c24b2f;
+  --line: #d9d3c8;
+  --status-bg: color-mix(in srgb, var(--paper) 88%, transparent);
+  --diagram-bg: #ebe7df;
+  --diagram-ink: #1a1816;
+
+  --font:
+    ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", "Sarasa Mono SC",
+    "Noto Sans Mono CJK SC", "Source Han Mono SC", "Menlo", "Consolas", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", monospace;
+  --mono: var(--font);
   --font-size: 17px;
-  --line-height: 1.8;
+  --line-height: 1.75;
   --content-width: 720px;
-  --app-hm-fg: #34312d;
-  --app-hm-fg-dim: #969087;
-  --app-hm-marker: #bbb3a7;
-  --app-hm-accent: #c65335;
-  --app-hm-code-fg: #a8402a;
-  --app-hm-code-bg: rgba(115, 106, 94, 0.1);
-  --app-hm-codeblock-bg: #f0ede6;
-  --app-hm-quote-border: #d2cbc0;
-  --app-hm-quote-fg: #686258;
-  --app-hm-tag-bg: #eae5dc;
-  --app-hm-tag-fg: #756b5e;
-  --app-hm-hr: #d8d2c7;
-  --app-hm-table-border: #d8d2c7;
-  --app-hm-table-header-bg: rgba(115, 106, 94, 0.06);
-  --app-hm-selection: rgba(198, 83, 53, 0.16);
+
+  --app-hm-fg: #1f1c19;
+  --app-hm-fg-dim: #8a847a;
+  --app-hm-marker: #b0a89c;
+  --app-hm-accent: #c24b2f;
+  --app-hm-code-fg: #a63a24;
+  --app-hm-code-bg: rgba(26, 24, 22, 0.06);
+  --app-hm-codeblock-bg: #ebe7df;
+  --app-hm-quote-border: #cfc7ba;
+  --app-hm-quote-fg: #5c564e;
+  --app-hm-tag-bg: #e5e0d6;
+  --app-hm-tag-fg: #5f584f;
+  --app-hm-hr: #d4cdc2;
+  --app-hm-table-border: #d4cdc2;
+  --app-hm-table-header-bg: rgba(26, 24, 22, 0.04);
+  --app-hm-selection: rgba(194, 75, 47, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark — charcoal with warm undertone, high diagram contrast */
+    --paper: #141312;
+    --ink: #ece7df;
+    --ink-soft: #9a9388;
+    --accent: #e07a55;
+    --line: #2c2925;
+    --status-bg: color-mix(in srgb, var(--paper) 88%, transparent);
+    --diagram-bg: #1c1a17;
+    --diagram-ink: #f2eee6;
+
+    --app-hm-fg: #ece7df;
+    --app-hm-fg-dim: #8f887c;
+    --app-hm-marker: #6a645c;
+    --app-hm-accent: #e07a55;
+    --app-hm-code-fg: #f0a090;
+    --app-hm-code-bg: rgba(255, 248, 240, 0.08);
+    --app-hm-codeblock-bg: #1c1a17;
+    --app-hm-quote-border: #3f3a34;
+    --app-hm-quote-fg: #b8b0a4;
+    --app-hm-tag-bg: #2a2722;
+    --app-hm-tag-fg: #c4bdb2;
+    --app-hm-hr: #322e29;
+    --app-hm-table-border: #322e29;
+    --app-hm-table-header-bg: rgba(255, 248, 240, 0.05);
+    --app-hm-selection: rgba(224, 122, 85, 0.28);
+  }
 }
 
 * {
@@ -49,18 +83,15 @@ body {
   overflow: hidden;
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--ui-font);
+  font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-button,
-select,
-input {
+button {
   font: inherit;
 }
 
-/* Full-window scroll — scrollbar at the far right */
 .scroll-root {
   height: 100vh;
   height: 100dvh;
@@ -76,7 +107,7 @@ input {
   min-height: 100%;
   margin: 0 auto;
   padding: 12vh 28px 50vh 0;
-  box-sizing: border-box;
+  background: transparent;
 }
 
 .editor-mount {
@@ -112,10 +143,36 @@ input {
   padding: 0 8px 0 52px;
   font-size: var(--font-size);
   line-height: var(--line-height);
-  box-sizing: border-box;
 }
 
-/* Ephemeral save / file status — floats, then vanishes */
+/* Diagram: same surface family, stronger contrast for SVG strokes/text */
+.editor-mount .handymd .hm-diagram {
+  background: var(--diagram-bg);
+  color: var(--diagram-ink);
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  padding: 18px;
+}
+
+.editor-mount .handymd .hm-diagram svg {
+  max-width: 100%;
+  height: auto;
+  color: var(--diagram-ink);
+}
+
+.editor-mount .handymd .hm-diagram svg text,
+.editor-mount .handymd .hm-diagram svg .nodeLabel,
+.editor-mount .handymd .hm-diagram svg .edgeLabel,
+.editor-mount .handymd .hm-diagram svg .label {
+  fill: var(--diagram-ink) !important;
+  color: var(--diagram-ink) !important;
+}
+
+.editor-mount .handymd .hm-diagram-empty {
+  border-color: color-mix(in srgb, var(--ink) 18%, transparent);
+  color: var(--ink-soft);
+}
+
 .status {
   position: fixed;
   top: calc(14px + env(safe-area-inset-top));
@@ -125,11 +182,10 @@ input {
   max-width: min(70vw, 360px);
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
   background: var(--status-bg);
   color: var(--ink-soft);
   font-size: 12px;
-  letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -157,7 +213,13 @@ input {
   color: #5a8f66;
 }
 
-/* Corner chrome — nearly invisible until hovered / focused / open */
+@media (prefers-color-scheme: dark) {
+  .status[data-tone='ok'] {
+    color: #7cb88a;
+  }
+}
+
+/* Faint corner actions — no brand bar, no shortcut legends */
 .corner-chrome {
   position: fixed;
   top: calc(10px + env(safe-area-inset-top));
@@ -166,13 +228,12 @@ input {
   display: flex;
   align-items: center;
   gap: 2px;
-  opacity: 0.18;
+  opacity: 0.16;
   transition: opacity 0.2s ease;
 }
 
 .corner-chrome:hover,
-.corner-chrome:focus-within,
-body:has(#settings-panel:not([hidden])) .corner-chrome {
+.corner-chrome:focus-within {
   opacity: 1;
 }
 
@@ -196,139 +257,13 @@ body:has(#settings-panel:not([hidden])) .corner-chrome {
   outline: none;
 }
 
-.settings-btn {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-  padding: 0;
-}
-
-.settings-btn:hover,
-.settings-btn:focus-visible,
-.settings-btn[aria-expanded='true'] {
-  color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 6%, transparent);
-  outline: none;
-}
-
-.settings-btn svg {
-  width: 16px;
-  height: 16px;
-  display: block;
-}
-
-/* Settings popover */
-.settings-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  background: rgba(28, 26, 23, 0.14);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-.settings-backdrop[hidden],
-.settings-panel[hidden] {
-  display: none !important;
-}
-
-.settings-panel {
-  position: fixed;
-  top: calc(48px + env(safe-area-inset-top));
-  right: calc(12px + env(safe-area-inset-right));
-  z-index: 71;
-  width: min(300px, calc(100vw - 24px));
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--card);
-  box-shadow: 0 18px 48px rgba(28, 26, 23, 0.12);
-  color: var(--ink);
-  font-size: 13px;
-}
-
-.settings-panel h2 {
-  margin: 0 0 14px;
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.settings-row {
-  display: grid;
-  grid-template-columns: 56px 1fr;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.settings-row.with-value {
-  grid-template-columns: 56px 1fr 34px;
-}
-
-.settings-row label {
-  color: var(--ink-soft);
-  font-size: 12px;
-}
-
-.settings-row select {
-  width: 100%;
-  appearance: none;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.settings-row input[type='range'] {
-  width: 100%;
-  accent-color: var(--accent);
-}
-
-.settings-value {
-  min-width: 2.8em;
-  text-align: right;
-  color: var(--ink-soft);
-  font-variant-numeric: tabular-nums;
-  font-size: 11px;
-}
-
-.settings-hint {
-  margin: 14px 0 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  color: var(--ink-soft);
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.settings-hint kbd {
-  font-family: var(--mono);
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-}
-
 .drop-overlay {
   position: fixed;
   inset: 0;
   z-index: 80;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--paper) 72%, transparent);
+  background: color-mix(in srgb, var(--paper) 78%, transparent);
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
 }
@@ -338,12 +273,9 @@ body:has(#settings-panel:not([hidden])) .corner-chrome {
 }
 
 .drop-card {
-  padding: 20px 32px;
-  border: 1px dashed var(--line);
-  border-radius: 12px;
-  background: var(--status-bg);
+  padding: 18px 28px;
   color: var(--ink-soft);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .toast {
@@ -394,20 +326,11 @@ body:has(#settings-panel:not([hidden])) .corner-chrome {
   .corner-chrome {
     opacity: 0.45;
   }
+}
 
-  .settings-panel {
-    top: auto;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    max-height: min(82dvh, 520px);
-    overflow: auto;
-    border-radius: 16px 16px 0 0;
-    border-left: 0;
-    border-right: 0;
-    border-bottom: 0;
-    padding: 18px max(16px, env(safe-area-inset-right))
-      calc(18px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+@media (hover: none) {
+  .corner-chrome {
+    opacity: 0.55;
   }
 }
 
@@ -416,12 +339,5 @@ body:has(#settings-panel:not([hidden])) .corner-chrome {
   .toast,
   .corner-chrome {
     transition: none;
-  }
-}
-
-/* Touch devices: keep chrome usable without hover */
-@media (hover: none) {
-  .corner-chrome {
-    opacity: 0.55;
   }
 }

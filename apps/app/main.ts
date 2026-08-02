@@ -1,21 +1,19 @@
 /**
  * handymd writing app — immersive shell.
  *
- *   • Type on blank paper
+ *   • Blank paper, system light / dark
  *   • ⌘/Ctrl+O open · ⌘/Ctrl+S save · ⌘/Ctrl+⇧+S save as · ⌘/Ctrl+N new
- *   • ⌘/Ctrl+, preferences
+ *   • ⌘/Ctrl+= or ⌘/Ctrl++ bigger · ⌘/Ctrl+- smaller
  *   • Drag & drop .md · OS file_handlers
- *   • Click empty lower area → caret at end
  */
 import { mountAppEditor, type AppEditorApi } from './editor'
 import {
-  applySettings,
-  loadSettings,
-  saveSettings,
-  type AppSettings,
-  type FontId,
-  type ThemeId,
-} from './settings'
+  applyFontSize,
+  bumpFontSize,
+  loadFontSize,
+  saveFontSize,
+  syncThemeColor,
+} from './prefs'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null
 
@@ -24,30 +22,19 @@ const editorMount = $('editor')
 const statusEl = $('status')
 const fileInput = $('file-input') as HTMLInputElement | null
 const dropOverlay = $('drop-overlay')
-const settingsBtn = $('settings-btn') as HTMLButtonElement | null
-const settingsPanel = $('settings-panel')
-const settingsBackdrop = $('settings-backdrop')
-const setTheme = $('set-theme') as HTMLSelectElement | null
-const setFont = $('set-font') as HTMLSelectElement | null
-const setSize = $('set-size') as HTMLInputElement | null
-const setLeading = $('set-leading') as HTMLInputElement | null
-const setWidth = $('set-width') as HTMLInputElement | null
-const setSizeVal = $('set-size-val')
-const setLeadingVal = $('set-leading-val')
-const setWidthVal = $('set-width-val')
 const newBtn = $('new-btn') as HTMLButtonElement | null
 const openBtn = $('open-btn') as HTMLButtonElement | null
 const saveBtn = $('save-btn') as HTMLButtonElement | null
 
 let app: AppEditorApi | null = null
 let statusTimer = 0
-let settings: AppSettings = loadSettings()
 
-// Apply prefs before first paint of the editor
-applySettings(settings)
-syncSettingsForm()
+applyFontSize(loadFontSize())
+syncThemeColor()
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  syncThemeColor()
+})
 
-// ——— Status ———
 function showStatus(text: string, tone: 'neutral' | 'dirty' | 'ok' = 'neutral', ms = 1800) {
   if (!statusEl) return
   statusEl.hidden = false
@@ -80,86 +67,12 @@ function toast(msg: string) {
   }, 2000)
 }
 
-// ——— Settings UI ———
-function syncSettingsForm() {
-  if (setTheme) setTheme.value = settings.theme
-  if (setFont) setFont.value = settings.font
-  if (setSize) setSize.value = String(settings.fontSize)
-  if (setLeading) setLeading.value = String(settings.lineHeight)
-  if (setWidth) setWidth.value = String(settings.contentWidth)
-  if (setSizeVal) setSizeVal.textContent = String(settings.fontSize)
-  if (setLeadingVal) setLeadingVal.textContent = settings.lineHeight.toFixed(2)
-  if (setWidthVal) setWidthVal.textContent = String(settings.contentWidth)
-}
-
-let settingsSaveTimer = 0
-function commitSettings(next: AppSettings, opts: { persist?: boolean } = {}) {
-  settings = next
-  applySettings(settings)
-  syncSettingsForm()
-  // Persist debounced — sliders fire many input events
-  if (opts.persist === false) return
-  window.clearTimeout(settingsSaveTimer)
-  settingsSaveTimer = window.setTimeout(() => saveSettings(settings), 120)
-}
-
-function openSettings() {
-  syncSettingsForm()
-  settingsPanel?.removeAttribute('hidden')
-  settingsBackdrop?.removeAttribute('hidden')
-  settingsBtn?.setAttribute('aria-expanded', 'true')
-  setTheme?.focus()
-}
-
-function closeSettings() {
-  settingsPanel?.setAttribute('hidden', '')
-  settingsBackdrop?.setAttribute('hidden', '')
-  settingsBtn?.setAttribute('aria-expanded', 'false')
-}
-
-function toggleSettings() {
-  if (settingsPanel?.hasAttribute('hidden')) openSettings()
-  else closeSettings()
-}
-
-settingsBtn?.addEventListener('click', (e) => {
-  e.stopPropagation()
-  toggleSettings()
-})
-settingsBackdrop?.addEventListener('click', () => closeSettings())
-
-setTheme?.addEventListener('change', () => {
-  commitSettings({ ...settings, theme: setTheme.value as ThemeId })
-})
-setFont?.addEventListener('change', () => {
-  commitSettings({ ...settings, font: setFont.value as FontId })
-})
-setSize?.addEventListener('input', () => {
-  const fontSize = Number(setSize.value)
-  if (setSizeVal) setSizeVal.textContent = String(fontSize)
-  commitSettings({ ...settings, fontSize })
-})
-setLeading?.addEventListener('input', () => {
-  const lineHeight = Number(setLeading.value)
-  if (setLeadingVal) setLeadingVal.textContent = lineHeight.toFixed(2)
-  commitSettings({ ...settings, lineHeight })
-})
-setWidth?.addEventListener('input', () => {
-  const contentWidth = Number(setWidth.value)
-  if (setWidthVal) setWidthVal.textContent = String(contentWidth)
-  commitSettings({ ...settings, contentWidth })
-})
-// Flush prefs when the panel closes / page hides
-window.addEventListener('pagehide', () => saveSettings(settings))
-
-// ——— Bootstrap editor ———
 async function ensureEditor(): Promise<AppEditorApi> {
   if (app) return app
   if (!editorMount) throw new Error('editor mount missing')
 
   app = await mountAppEditor(editorMount, {
     onSaveStatus: (status) => {
-      // Dirty stays quiet — only flash after an intentional save / open.
       if (status === 'saving' || status === 'retrying') showStatus('saving…', 'neutral', 1200)
       else if (status === 'clean') showStatus('saved', 'ok', 1400)
     },
@@ -175,7 +88,6 @@ void ensureEditor().catch((err) => {
   toast('Failed to start editor')
 })
 
-// ——— Click empty lower / side of page → caret at end ———
 function isInsideProseMirror(el: EventTarget | null): boolean {
   return el instanceof Element && !!el.closest('.ProseMirror')
 }
@@ -183,10 +95,7 @@ function isInsideProseMirror(el: EventTarget | null): boolean {
 function isChromeClick(el: EventTarget | null): boolean {
   if (!(el instanceof Element)) return false
   return !!(
-    el.closest('.settings-panel') ||
-    el.closest('.settings-btn') ||
     el.closest('.corner-chrome') ||
-    el.closest('.settings-backdrop') ||
     el.closest('.drop-overlay') ||
     el.closest('.status')
   )
@@ -195,15 +104,11 @@ function isChromeClick(el: EventTarget | null): boolean {
 scrollRoot?.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return
   if (isChromeClick(e.target)) return
-  // Clicks on text / widgets inside PM keep default PM positioning.
   if (isInsideProseMirror(e.target)) return
-
-  // Empty padding under the column, or gutters of the scroll surface.
   e.preventDefault()
   void ensureEditor().then((p) => p.focusEnd())
 })
 
-// ——— File open ———
 async function openFile(file: File, handle?: FileSystemFileHandle | null) {
   const md = await file.text()
   const p = await ensureEditor()
@@ -252,7 +157,7 @@ openBtn?.addEventListener('click', () => void pickFile())
 newBtn?.addEventListener('click', () => {
   void ensureEditor().then((p) => {
     p.newDocument()
-    showStatus('New document', 'neutral')
+    showStatus('Untitled', 'neutral')
   })
 })
 saveBtn?.addEventListener('click', () => {
@@ -262,26 +167,32 @@ saveBtn?.addEventListener('click', () => {
   })
 })
 
-// ——— Keyboard ———
 function isMod(e: KeyboardEvent) {
   return e.metaKey || e.ctrlKey
 }
 
 window.addEventListener('keydown', (e) => {
-  // Escape closes settings
-  if (e.key === 'Escape' && settingsPanel && !settingsPanel.hasAttribute('hidden')) {
-    e.preventDefault()
-    closeSettings()
-    return
-  }
-
   if (!isMod(e)) return
   const key = e.key.toLowerCase()
 
-  // ⌘, preferences
-  if (key === ',' || e.code === 'Comma') {
+  // Font size: ⌘+ / ⌘= grow, ⌘- shrink, ⌘0 reset
+  if (key === '=' || key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd') {
     e.preventDefault()
-    toggleSettings()
+    const size = bumpFontSize(1)
+    showStatus(`${size}px`, 'neutral', 900)
+    return
+  }
+  if (key === '-' || key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') {
+    e.preventDefault()
+    const size = bumpFontSize(-1)
+    showStatus(`${size}px`, 'neutral', 900)
+    return
+  }
+  if (key === '0' || e.code === 'Digit0') {
+    e.preventDefault()
+    const size = applyFontSize(17)
+    saveFontSize(size)
+    showStatus(`${size}px`, 'neutral', 900)
     return
   }
 
@@ -313,11 +224,9 @@ window.addEventListener('keydown', (e) => {
       p.newDocument()
       showStatus('Untitled', 'neutral')
     })()
-    return
   }
 })
 
-// ——— Drag & drop ———
 let dragDepth = 0
 function isFileDrag(e: DragEvent) {
   return Array.from(e.dataTransfer?.types ?? []).includes('Files')
@@ -357,13 +266,12 @@ window.addEventListener('drop', (e) => {
     file.type === 'text/plain' ||
     file.type === ''
   if (!ok) {
-    toast('Drop a Markdown file')
+    toast('请拖入 Markdown 文件')
     return
   }
   void openFile(file, null)
 })
 
-// ——— PWA file_handlers ———
 type LaunchParams = { files?: FileSystemFileHandle[] }
 const launchQueue = (
   window as Window & {
@@ -381,7 +289,7 @@ if (launchQueue && typeof launchQueue.setConsumer === 'function') {
       await openFile(file, handle)
     } catch (err) {
       console.error('launchQueue open failed', err)
-      toast('Could not open file')
+      toast('无法打开文件')
     }
   })
 }
@@ -397,4 +305,3 @@ if ('serviceWorker' in navigator) {
     })
   }
 }
-

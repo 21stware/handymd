@@ -86,10 +86,19 @@ await cp('icons/icon-512.png', join(outdir, 'icons/icon-512.png'))
 // ——— 4) HTML: inject base + module entry ———
 const htmlTemplate = await readFile('index.html', 'utf8')
 
+const mermaidImportMap = `<script type="importmap">
+    {
+      "imports": {
+        "mermaid": "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"
+      }
+    }
+    </script>`
+
 const html = htmlTemplate.replace(
   /<script type="module" src="\.\/main\.ts"><\/script>/,
   [
     `<base href="${base}" />`,
+    mermaidImportMap,
     `<link rel="stylesheet" href="handymd.css" />`,
     `<link rel="modulepreload" href="${jsEntry}" />`,
     `<script type="module" src="${jsEntry}"></script>`,

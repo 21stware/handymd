@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@21stware/handymd": "workspace:*",
+    "mermaid": "^11.12.2",
     "prosemirror-state": "^1.4.3"
   },
   "devDependencies": {
