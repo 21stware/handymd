@@ -1,15 +1,15 @@
 {
   "name": "handymd",
   "short_name": "handymd",
-  "description": "Source-fidelity Markdown writing. Open, edit, and save .md files.",
+  "description": "A quiet, source-faithful Markdown writing space.",
   "display_override": ["window-controls-overlay", "standalone"],
   "id": "/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#faf8f4",
-  "theme_color": "#faf8f4",
+  "background_color": "#f4f1ea",
+  "theme_color": "#f4f1ea",
   "lang": "zh-CN",
   "categories": ["productivity", "utilities"],
   "icons": [

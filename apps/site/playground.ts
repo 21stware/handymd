@@ -45,33 +45,10 @@ export async function mountPlayground(
   let fileName = 'welcome.md'
   let readOnly = false
 
-  // bump when SAMPLE_MARKDOWN gains a showcase visitors should see by default
-  const storageKey = 'handymd-landing-draft-v2'
-
   const editor = createEditor({
     mount,
-    load: async () => {
-      try {
-        const draft = localStorage.getItem(storageKey)
-        return draft && draft.length > 0 ? draft : SAMPLE_MARKDOWN
-      } catch {
-        return SAMPLE_MARKDOWN
-      }
-    },
-    save: async (md) => {
-      if (fileHandle && 'createWritable' in fileHandle) {
-        const writable = await (fileHandle as WritableHandle).createWritable()
-        await writable.write(md)
-        await writable.close()
-        return
-      }
-      try {
-        localStorage.setItem(storageKey, md)
-      } catch {
-        /* quota / private mode — ignore */
-      }
-    },
-    autosave: { debounceMs: 600 },
+    content: SAMPLE_MARKDOWN,
+    onChange: () => hooks.onSaveStatus?.('dirty'),
     // Promise-accepted: mermaid chunk loads after first paint of the playground
     diagram: createMermaidRenderer({ theme: 'neutral' }),
     onSaveStatusChange: (status) => hooks.onSaveStatus?.(status),
@@ -80,7 +57,7 @@ export async function mountPlayground(
     },
   })
 
-  hooks.onFileName?.(fileName, '本地草稿 / 示例')
+  hooks.onFileName?.(fileName, '示例文稿 · 手动保存')
   hooks.onReady?.()
 
   return {
@@ -91,11 +68,7 @@ export async function mountPlayground(
       editor.setMarkdown(md)
       const label = fileHandle ? '已关联本机文件' : '已打开（未关联句柄）'
       hooks.onFileName?.(fileName, label)
-      try {
-        localStorage.setItem(storageKey, md)
-      } catch {
-        /* ignore */
-      }
+      hooks.onSaveStatus?.('clean')
     },
     getMarkdown: () => editor.getMarkdown(),
     focus: () => editor.focus(),
@@ -107,10 +80,12 @@ export async function mountPlayground(
     async saveToHandle() {
       const md = editor.getMarkdown()
       if (fileHandle && 'createWritable' in fileHandle) {
+        hooks.onSaveStatus?.('saving')
         const writable = await (fileHandle as WritableHandle).createWritable()
         await writable.write(md)
         await writable.close()
         hooks.onFileName?.(fileName, '已保存到本机')
+        hooks.onSaveStatus?.('clean')
         return true
       }
       // Fallback: download
@@ -122,12 +97,13 @@ export async function mountPlayground(
       a.click()
       URL.revokeObjectURL(url)
       hooks.onFileName?.(fileName, '已下载')
+      hooks.onSaveStatus?.('clean')
       return true
     },
     setFileHandle(handle, name) {
       fileHandle = handle
       if (name) fileName = name
-      hooks.onFileName?.(fileName, handle ? '已关联本机文件' : '本地草稿')
+      hooks.onFileName?.(fileName, handle ? '已关联本机文件' : '未保存文稿')
     },
     destroy: () => editor.destroy(),
   }

@@ -81,11 +81,12 @@ $('copy-install')?.addEventListener('click', async (e) => {
   const ok = await copyText('bun add @21stware/handymd')
   if (ok) {
     el.classList.add('is-copied')
-    el.textContent = '已复制 ✓'
+    el.innerHTML = '<span>✓</span> 安装命令已复制 <span class="copy-mark">完成</span>'
     toast('安装命令已复制')
     setTimeout(() => {
       el.classList.remove('is-copied')
-      el.textContent = 'bun add @21stware/handymd'
+      el.innerHTML =
+        '<span>$</span> bun add @21stware/handymd <span class="copy-mark">复制</span>'
     }, 1600)
   }
 })
@@ -212,6 +213,15 @@ $('btn-save')?.addEventListener('click', async () => {
   const p = await ensurePlayground()
   await p.saveToHandle()
   toast('已保存')
+})
+
+window.addEventListener('keydown', (event) => {
+  if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return
+  event.preventDefault()
+  void ensurePlayground().then(async (p) => {
+    await p.saveToHandle()
+    toast('已保存')
+  })
 })
 
 // ——— File open (picker / drag / PWA launchQueue) ———

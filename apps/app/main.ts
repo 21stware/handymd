@@ -16,7 +16,6 @@ import {
   type FontId,
   type ThemeId,
 } from './settings'
-import './styles.css'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null
 
@@ -36,6 +35,12 @@ const setWidth = $('set-width') as HTMLInputElement | null
 const setSizeVal = $('set-size-val')
 const setLeadingVal = $('set-leading-val')
 const setWidthVal = $('set-width-val')
+const documentName = $('document-name')
+const documentMeta = $('document-meta')
+const stateDot = $('state-dot')
+const newBtn = $('new-btn') as HTMLButtonElement | null
+const openBtn = $('open-btn') as HTMLButtonElement | null
+const saveBtn = $('save-btn') as HTMLButtonElement | null
 
 let app: AppEditorApi | null = null
 let statusTimer = 0
@@ -157,13 +162,31 @@ async function ensureEditor(): Promise<AppEditorApi> {
 
   app = await mountAppEditor(editorMount, {
     onSaveStatus: (status) => {
+      if (stateDot) {
+        stateDot.dataset.status =
+          status === 'saving' || status === 'retrying'
+            ? 'saving'
+            : status === 'dirty' || status === 'offline'
+              ? 'dirty'
+              : 'clean'
+      }
       if (status === 'dirty') showStatus('•', 'dirty', 1200)
       else if (status === 'saving' || status === 'retrying') showStatus('saving…', 'neutral', 1200)
       else if (status === 'clean') showStatus('saved', 'ok', 1400)
       else if (status === 'offline') showStatus('offline draft', 'dirty', 2200)
     },
-    onFileName: (name) => {
+    onFileName: (name, meta) => {
       document.title = name.replace(/\.md$/i, '') || 'Untitled'
+      if (documentName) documentName.textContent = name
+      if (documentMeta) {
+        const labels: Record<string, string> = {
+          draft: 'unsaved',
+          file: 'local file',
+          saved: 'saved locally',
+          downloaded: 'downloaded',
+        }
+        documentMeta.textContent = labels[meta] ?? meta
+      }
     },
   })
   return app
@@ -184,6 +207,7 @@ function isChromeClick(el: EventTarget | null): boolean {
   return !!(
     el.closest('.settings-panel') ||
     el.closest('.settings-btn') ||
+    el.closest('.app-bar') ||
     el.closest('.settings-backdrop') ||
     el.closest('.drop-overlay') ||
     el.closest('.status')
@@ -244,6 +268,20 @@ fileInput?.addEventListener('change', async () => {
   if (!file) return
   await openFile(file, null)
   fileInput.value = ''
+})
+
+openBtn?.addEventListener('click', () => void pickFile())
+newBtn?.addEventListener('click', () => {
+  void ensureEditor().then((p) => {
+    p.newDocument()
+    showStatus('New document', 'neutral')
+  })
+})
+saveBtn?.addEventListener('click', () => {
+  void ensureEditor().then(async (p) => {
+    const ok = await p.saveToHandle()
+    if (ok) showStatus(p.hasHandle() ? 'saved' : p.getFileName(), 'ok')
+  })
 })
 
 // ——— Keyboard ———

@@ -40,8 +40,6 @@ type WritableHandle = FileSystemFileHandle & {
   createWritable: () => Promise<FileSystemWritableFileStream>
 }
 
-/** Bump when default doc semantics change so stale product drafts are not reused. */
-const STORAGE_KEY = 'handymd-app-draft-v3'
 const DEFAULT_NAME = 'Untitled.md'
 
 /** Empty page — Typora/Bear open onto blank paper. */
@@ -57,31 +55,8 @@ export async function mountAppEditor(
 
   const editor = createEditor({
     mount,
-    load: async () => {
-      try {
-        const draft = localStorage.getItem(STORAGE_KEY)
-        // Prefer last local draft only if non-empty; otherwise blank paper.
-        if (draft != null && draft.length > 0) return draft
-        return BLANK
-      } catch {
-        return BLANK
-      }
-    },
-    save: async (md) => {
-      if (fileHandle && 'createWritable' in fileHandle) {
-        const writable = await (fileHandle as WritableHandle).createWritable()
-        await writable.write(md)
-        await writable.close()
-        return
-      }
-      try {
-        localStorage.setItem(STORAGE_KEY, md)
-      } catch {
-        /* quota / private mode */
-      }
-    },
-    autosave: { debounceMs: 500 },
-    onSaveStatusChange: (status) => hooks.onSaveStatus?.(status),
+    content: BLANK,
+    onChange: () => hooks.onSaveStatus?.('dirty'),
     onOpenLink: (href) => {
       window.open(href, '_blank', 'noopener,noreferrer')
     },
@@ -119,10 +94,12 @@ export async function mountAppEditor(
           ],
         })
         fileHandle = handle
+        hooks.onSaveStatus?.('saving')
         const writable = await (handle as WritableHandle).createWritable()
         await writable.write(md)
         await writable.close()
         publishName(handle.name, 'saved')
+        hooks.onSaveStatus?.('clean')
         return true
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return false
@@ -130,16 +107,19 @@ export async function mountAppEditor(
     }
     downloadMarkdown(md, fileName)
     publishName(fileName, 'downloaded')
+    hooks.onSaveStatus?.('clean')
     return true
   }
 
   async function saveToHandle(): Promise<boolean> {
     const md = editor.getMarkdown()
     if (fileHandle && 'createWritable' in fileHandle) {
+      hooks.onSaveStatus?.('saving')
       const writable = await (fileHandle as WritableHandle).createWritable()
       await writable.write(md)
       await writable.close()
       publishName(fileName, 'saved')
+      hooks.onSaveStatus?.('clean')
       return true
     }
     // No handle yet → Save As
@@ -164,11 +144,7 @@ export async function mountAppEditor(
       editor.setMarkdown(md)
       const label = fileHandle ? 'file' : 'draft'
       publishName(meta.name || DEFAULT_NAME, label)
-      try {
-        localStorage.setItem(STORAGE_KEY, md)
-      } catch {
-        /* ignore */
-      }
+      hooks.onSaveStatus?.('clean')
     },
     getMarkdown: () => editor.getMarkdown(),
     focus: () => editor.focus(),
@@ -184,11 +160,7 @@ export async function mountAppEditor(
       fileHandle = null
       editor.setMarkdown(BLANK)
       publishName(DEFAULT_NAME, 'draft')
-      try {
-        localStorage.removeItem(STORAGE_KEY)
-      } catch {
-        /* ignore */
-      }
+      hooks.onSaveStatus?.('clean')
       editor.focus()
     },
     saveToHandle,

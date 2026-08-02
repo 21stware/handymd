@@ -259,25 +259,23 @@ function renderDocPage(input: DocPageInput): string {
     <base href="${escapeAttr(base)}" />
     <title>${escapeHtml(title)} — handymd 文档</title>
     <meta name="description" content="@21stware/handymd ${escapeAttr(title)} 文档" />
-    <meta name="theme-color" content="#f7f3eb" />
+    <meta name="theme-color" content="#f4f1ea" />
     <meta name="color-scheme" content="light" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://21stware.github.io/handymd/docs/${escapeAttr(slug)}.html" />
     <style>
       :root {
-        --paper: #f7f3eb; --paper-deep: #efe8db; --ink: #2c2823; --ink-soft: #6b645a;
-        --ink-faint: #a89f92; --line: #e4dccf; --accent: #c9603c;
-        --accent-soft: rgba(201,96,60,0.12); --card: #fffdf8;
-        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        --paper: #f4f1ea; --paper-deep: #eae5da; --ink: #181715; --ink-soft: #625e56;
+        --ink-faint: #938d82; --line: #d8d2c7; --accent: #c65335;
+        --accent-soft: rgba(198,83,53,0.1); --card: #fbfaf6;
+        --font: "Avenir Next", Avenir, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        --serif: "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif CJK SC", Georgia, serif;
         --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       }
       html { scroll-behavior: smooth; }
       body {
         margin: 0; font-family: var(--font); color: var(--ink); line-height: 1.65;
-        background:
-          radial-gradient(1200px 600px at 10% -10%, #fff8ec 0%, transparent 55%),
-          radial-gradient(900px 500px at 100% 0%, #f3e7d8 0%, transparent 50%),
-          var(--paper);
+        background: var(--paper);
         -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
       }
     </style>
@@ -288,27 +286,26 @@ function renderDocPage(input: DocPageInput): string {
     <div class="docs-page">
       <header class="docs-nav">
         <!-- <base> is the site root, so these are base-relative, not page-relative -->
-        <a class="brand" href="./"><span class="brand-mark" aria-hidden="true">h</span><span>handymd</span></a>
+        <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span><span>handymd</span></a>
         <nav class="nav-links">
-          <a href="./#features">特性</a>
+          <a href="./#philosophy">理念</a>
           <a href="./#playground">试写</a>
           <a href="docs/guide.html" class="is-active">文档</a>
           <a href="app/">编辑器</a>
-          <a href="./#install">接入 SDK</a>
         </nav>
         <span class="nav-spacer"></span>
         <a class="github-link" href="https://github.com/21stware/handymd" target="_blank" rel="noopener noreferrer">GitHub</a>
       </header>
       <div class="docs-body">
         <aside class="docs-sidebar">
-          <h3>文档</h3>
+          <h3>Documentation</h3>
           ${sidebar}
         </aside>
         <article class="docs-article">
           ${body}
         </article>
         <aside class="docs-toc">
-          <h3>本页</h3>
+          <h3>On this page</h3>
           ${tocHtml}
         </aside>
       </div>

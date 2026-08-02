@@ -34,6 +34,7 @@ const FONT_STACKS: Record<FontId, string> = {
 
 type ThemeTokens = {
   paper: string
+  paperDeep: string
   ink: string
   inkSoft: string
   accent: string
@@ -61,18 +62,19 @@ type ThemeTokens = {
 
 const THEMES: Record<ThemeId, ThemeTokens> = {
   paper: {
-    paper: '#faf8f4',
-    ink: '#2c2823',
-    inkSoft: '#8a8378',
-    accent: '#c9603c',
-    line: '#e8e2d6',
-    card: '#fffdf8',
-    statusBg: 'rgba(255, 253, 248, 0.88)',
-    hmFg: '#3d3a35',
-    hmFgDim: '#a8a29a',
-    hmMarker: '#c5beb2',
-    hmAccent: '#c9603c',
-    hmCodeFg: '#b8433c',
+    paper: '#f4f1ea',
+    paperDeep: '#eae5da',
+    ink: '#181715',
+    inkSoft: '#6f6960',
+    accent: '#c65335',
+    line: '#d8d2c7',
+    card: '#fbfaf6',
+    statusBg: 'rgba(251, 250, 246, 0.9)',
+    hmFg: '#34312d',
+    hmFgDim: '#969087',
+    hmMarker: '#bbb3a7',
+    hmAccent: '#c65335',
+    hmCodeFg: '#a8402a',
     hmCodeBg: 'rgba(135, 131, 120, 0.13)',
     hmCodeblockBg: '#f6f3ee',
     hmQuoteBorder: '#ddd6ca',
@@ -87,6 +89,7 @@ const THEMES: Record<ThemeId, ThemeTokens> = {
   },
   sepia: {
     paper: '#f4ecd8',
+    paperDeep: '#e8dcc2',
     ink: '#3b2f2f',
     inkSoft: '#8b7355',
     accent: '#a65b3a',
@@ -112,6 +115,7 @@ const THEMES: Record<ThemeId, ThemeTokens> = {
   },
   light: {
     paper: '#ffffff',
+    paperDeep: '#f0f0ee',
     ink: '#1a1a1a',
     inkSoft: '#6b6b6b',
     accent: '#c9603c',
@@ -136,7 +140,8 @@ const THEMES: Record<ThemeId, ThemeTokens> = {
     colorScheme: 'light',
   },
   dark: {
-    paper: '#1c1b1a',
+    paper: '#181715',
+    paperDeep: '#24221f',
     ink: '#e8e4dc',
     inkSoft: '#9a948a',
     accent: '#e07a55',
@@ -211,6 +216,7 @@ export function applySettings(s: AppSettings): void {
   root.style.colorScheme = t.colorScheme
 
   root.style.setProperty('--paper', t.paper)
+  root.style.setProperty('--paper-deep', t.paperDeep)
   root.style.setProperty('--ink', t.ink)
   root.style.setProperty('--ink-soft', t.inkSoft)
   root.style.setProperty('--accent', t.accent)
