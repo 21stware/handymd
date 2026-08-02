@@ -1,6 +1,7 @@
 /**
- * Immersive writing shell — quiet chrome, focused paper.
- * Scroll on .scroll-root so the scrollbar sits at the window edge.
+ * Immersive writing shell — Typora / Bear style.
+ * No persistent app chrome. Paper fills the viewport.
+ * Corner actions fade in only when the pointer is near them.
  */
 
 :root {
@@ -8,7 +9,7 @@
   --paper: #f7f4ee;
   --paper-deep: #ebe6dc;
   --ink: #1c1a17;
-  --ink-soft: #7a746a;
+  --ink-soft: #8a8378;
   --accent: #c65335;
   --line: #e2dcd0;
   --card: #fffdf9;
@@ -20,7 +21,6 @@
   --font-size: 17px;
   --line-height: 1.8;
   --content-width: 720px;
-  --bar-h: 52px;
   --app-hm-fg: #34312d;
   --app-hm-fg-dim: #969087;
   --app-hm-marker: #bbb3a7;
@@ -60,157 +60,10 @@ input {
   font: inherit;
 }
 
-/* ——— Top bar ——— */
-.app-bar {
-  position: fixed;
-  inset: 0 0 auto;
-  z-index: 50;
-  height: var(--bar-h);
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 12px;
-  padding: 0 14px;
-  padding-top: env(safe-area-inset-top);
-  border-bottom: 1px solid transparent;
-  background: color-mix(in srgb, var(--paper) 86%, transparent);
-  backdrop-filter: blur(16px) saturate(1.1);
-  -webkit-backdrop-filter: blur(16px) saturate(1.1);
-}
-
-.app-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  width: max-content;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  text-decoration: none;
-}
-
-.brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  display: block;
-  box-shadow: 0 1px 2px rgba(28, 26, 23, 0.12);
-}
-
-.brand-text {
-  opacity: 0.9;
-}
-
-.document-state {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  justify-self: center;
-}
-
-.state-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #6f9a72;
-  flex-shrink: 0;
-}
-
-.state-dot[data-status='dirty'] {
-  background: #c18b3f;
-}
-
-.state-dot[data-status='saving'] {
-  background: var(--accent);
-  animation: pulse 1s ease infinite;
-}
-
-.document-name {
-  max-width: min(42vw, 280px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 550;
-  letter-spacing: -0.01em;
-}
-
-.document-meta {
-  color: var(--ink-soft);
-  font-size: 11px;
-}
-
-.app-actions {
-  justify-self: end;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.tool-btn {
-  appearance: none;
-  min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ink-soft);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.tool-btn:hover {
-  color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
-}
-
-.tool-btn.primary {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--card);
-}
-
-.tool-btn.primary:hover {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.settings-btn {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-  padding: 0;
-}
-
-.settings-btn:hover,
-.settings-btn:focus-visible,
-.settings-btn[aria-expanded='true'] {
-  color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
-  outline: none;
-}
-
-.settings-btn svg {
-  width: 16px;
-  height: 16px;
-  display: block;
-}
-
-/* ——— Writing surface ——— */
+/* Full-window scroll — scrollbar at the far right */
 .scroll-root {
   height: 100vh;
   height: 100dvh;
-  padding-top: calc(var(--bar-h) + env(safe-area-inset-top));
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -220,9 +73,9 @@ input {
 .page {
   width: 100%;
   max-width: var(--content-width);
-  min-height: calc(100% - 0px);
+  min-height: 100%;
   margin: 0 auto;
-  padding: 10vh 28px 45vh 0;
+  padding: 12vh 28px 50vh 0;
   box-sizing: border-box;
 }
 
@@ -262,27 +115,29 @@ input {
   box-sizing: border-box;
 }
 
-/* ——— Status ——— */
+/* Ephemeral save / file status — floats, then vanishes */
 .status {
   position: fixed;
-  top: calc(var(--bar-h) + 10px + env(safe-area-inset-top));
+  top: calc(14px + env(safe-area-inset-top));
   left: 50%;
-  z-index: 60;
+  z-index: 40;
   transform: translate(-50%, -6px);
   max-width: min(70vw, 360px);
-  padding: 6px 12px;
+  padding: 6px 14px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--status-bg);
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 12px;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s, transform 0.2s;
+  transition: opacity 0.25s ease, transform 0.25s ease;
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .status.is-on {
@@ -302,13 +157,80 @@ input {
   color: #5a8f66;
 }
 
-/* ——— Settings ——— */
+/* Corner chrome — nearly invisible until hovered / focused / open */
+.corner-chrome {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  right: calc(10px + env(safe-area-inset-right));
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.18;
+  transition: opacity 0.2s ease;
+}
+
+.corner-chrome:hover,
+.corner-chrome:focus-within,
+body:has(#settings-panel:not([hidden])) .corner-chrome {
+  opacity: 1;
+}
+
+.ghost-btn {
+  appearance: none;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.ghost-btn:hover,
+.ghost-btn:focus-visible {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  outline: none;
+}
+
+.settings-btn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 0;
+}
+
+.settings-btn:hover,
+.settings-btn:focus-visible,
+.settings-btn[aria-expanded='true'] {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  outline: none;
+}
+
+.settings-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* Settings popover */
 .settings-backdrop {
   position: fixed;
   inset: 0;
   z-index: 70;
-  background: rgba(28, 26, 23, 0.16);
+  background: rgba(28, 26, 23, 0.14);
   backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
 .settings-backdrop[hidden],
@@ -318,15 +240,16 @@ input {
 
 .settings-panel {
   position: fixed;
-  top: calc(var(--bar-h) + 8px + env(safe-area-inset-top));
-  right: 14px;
+  top: calc(48px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
   z-index: 71;
-  width: min(300px, calc(100vw - 28px));
+  width: min(300px, calc(100vw - 24px));
   padding: 16px;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--card);
   box-shadow: 0 18px 48px rgba(28, 26, 23, 0.12);
+  color: var(--ink);
   font-size: 13px;
 }
 
@@ -399,15 +322,15 @@ input {
   background: var(--paper);
 }
 
-/* ——— Drop / toast ——— */
 .drop-overlay {
   position: fixed;
   inset: 0;
   z-index: 80;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--paper) 70%, transparent);
-  backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--paper) 72%, transparent);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
 }
 
 .drop-overlay[hidden] {
@@ -415,7 +338,7 @@ input {
 }
 
 .drop-card {
-  padding: 22px 36px;
+  padding: 20px 32px;
   border: 1px dashed var(--line);
   border-radius: 12px;
   background: var(--status-bg);
@@ -432,7 +355,7 @@ input {
   padding: 9px 15px;
   border-radius: 999px;
   background: var(--ink);
-  color: var(--card);
+  color: var(--paper);
   font-size: 12px;
   opacity: 0;
   pointer-events: none;
@@ -455,25 +378,21 @@ input {
   border: 0;
 }
 
-@keyframes pulse {
-  50% {
-    opacity: 0.45;
-  }
-}
-
-@media (max-width: 720px) {
-  .brand-text,
-  .document-meta,
-  .secondary-action {
-    display: none;
-  }
-
+@media (max-width: 640px) {
   .page {
     padding: 8vh 16px 40vh 0;
   }
 
   .editor-mount .handymd .ProseMirror {
     padding-left: 40px;
+  }
+
+  .secondary-action {
+    display: none;
+  }
+
+  .corner-chrome {
+    opacity: 0.45;
   }
 
   .settings-panel {
@@ -495,12 +414,14 @@ input {
 @media (prefers-reduced-motion: reduce) {
   .status,
   .toast,
-  .tool-btn,
-  .settings-btn {
+  .corner-chrome {
     transition: none;
   }
+}
 
-  .state-dot {
-    animation: none;
+/* Touch devices: keep chrome usable without hover */
+@media (hover: none) {
+  .corner-chrome {
+    opacity: 0.55;
   }
 }
