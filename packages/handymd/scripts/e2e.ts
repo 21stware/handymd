@@ -1,8 +1,12 @@
 /**
  * 端到端交互验证（真实 Chromium）。
  *
- * 用法：先启动示例（bun run dev），再 `bun run e2e`。
+ * 用法：先启动示例（bun run dev:sdk），再 `bun run e2e`。
  * 依赖：`bunx playwright install chromium`
+ *
+ * 回归约定：交互 / L3 decoration / keymap 的 bug 修复后，优先补
+ * `test/*.test.ts`（尤其 decoconsistency / keymap / conceal）；
+ * 必须看见真 DOM 或真修饰键时，再在本文件加一条 check。
  */
 import { chromium, type Page } from 'playwright'
 
@@ -341,6 +345,58 @@ check(
   (await page.locator('.hm-diagram svg').count()) === 1,
 )
 await page.locator('#toggle-readonly').click()
+
+// ═══════════════════════════════════════════════════════════
+// 6. 回归：Enter 续行保留上一行块样式；Mod-Backspace 只清内容
+// ═══════════════════════════════════════════════════════════
+await reset(page)
+
+await page.evaluate(() => {
+  const pm = document.querySelector('.ProseMirror') as HTMLElement
+  pm.focus()
+  const sel = window.getSelection()!
+  const range = document.createRange()
+  range.selectNodeContents(pm)
+  range.collapse(false)
+  sel.removeAllRanges()
+  sel.addRange(range)
+})
+await page.keyboard.press('Enter')
+await page.keyboard.type('> hello quote')
+await page.waitForTimeout(120)
+await page.keyboard.press('Enter')
+await page.waitForTimeout(150)
+const quoteAfterEnter = await page.evaluate(() => {
+  const quotes = [...document.querySelectorAll('.hm-quote')]
+  const texts = quotes.map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim())
+  return {
+    count: quotes.length,
+    keepsPrev: texts.some((t) => t.includes('hello quote')),
+  }
+})
+check(
+  'Enter on quote keeps previous line as quote',
+  quoteAfterEnter.count >= 2 && quoteAfterEnter.keepsPrev,
+  JSON.stringify(quoteAfterEnter),
+)
+
+await page.keyboard.press('Enter') // 空 quote 再回车 → 退出块格式
+await page.waitForTimeout(80)
+await page.keyboard.type('- [ ] keep prefix text')
+await page.waitForTimeout(150)
+// Mod = Meta on macOS, Control elsewhere (matches ProseMirror keymap)
+await page.keyboard.press('ControlOrMeta+Backspace')
+await page.waitForTimeout(150)
+check(
+  'Mod-Backspace keeps checkbox and clears content only',
+  await page.evaluate(() => {
+    const todos = [...document.querySelectorAll('.hm-todo')]
+    const last = todos[todos.length - 1]
+    if (!last?.querySelector('input.hm-checkbox')) return false
+    const raw = last.textContent ?? ''
+    return raw.includes('- [ ]') && !raw.includes('keep prefix text')
+  }),
+)
 
 await browser.close()
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`)

@@ -207,6 +207,16 @@ stateDiagram-v2
 `test/decoconsistency.test.ts` 用「增量结果 vs 全量重建结果」的差分断言守住这套优化，
 `test/perf.test.ts` 的 `bigdoc_*` 用绝对预算守住不退回 O(N²)。
 
+## 测试约定
+
+修交互 / keymap / L3 decoration bug 时按这个顺序补回归：
+
+1. **单元**：`test/keymap.test.ts`、`test/conceal.test.ts`、`test/hittest.test.ts` 等能纯推状态的用例  
+2. **差分**：涉及 decoration map / 续行 / split 时，加到 `test/decoconsistency.test.ts`  
+3. **E2E**：必须看见真 DOM、真修饰键或宿主集成时，加到 `scripts/e2e.ts`（打 `example/`）
+
+本地：`bun run test`；E2E：`bun run dev:sdk` 后另开终端 `bun run e2e`。CI 两者都跑。
+
 **已知上限**：每个块级样式都是一个 `Decoration.node`，而 ProseMirror 的
 `NodeType.valid()` 内部走 `Fragment.findIndex()` 线性扫描，所以 `DecorationSet.map()`
 本身仍是 O(块数 × node decoration 数)。4k 行约 7 ms/键、8k 行以上会明显变慢。要彻底

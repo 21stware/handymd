@@ -6,8 +6,8 @@
 type PlaygroundApi = import('./playground').PlaygroundApi
 
 const SNIPPETS: Record<string, string> = {
-  bun: 'bun add @21stware/handymd\nbun add mermaid   # 可选：mermaid 图表',
-  npm: 'npm install @21stware/handymd\nnpm install mermaid   # optional: diagrams',
+  bun: 'bun add @21stware/handymd shiki\nbun add mermaid   # 可选：mermaid 图表',
+  npm: 'npm install @21stware/handymd shiki\nnpm install mermaid   # optional: diagrams',
   code: `import { createEditor, createMermaidRenderer } from '@21stware/handymd'
 import '@21stware/handymd/style.css'
 

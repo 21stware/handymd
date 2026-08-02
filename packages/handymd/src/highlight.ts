@@ -166,6 +166,10 @@ export function highlightPlugin(
         highlighter.then((fn) => {
           resolved = fn
           requestRefresh?.()
+        }).catch(() => {
+          // shiki 未安装或加载失败：保持无高亮，不阻塞编辑
+          resolved = (code) => code.split('\n').map((text) => [{ text }])
+          requestRefresh?.()
         })
       }
       return {
@@ -185,11 +189,9 @@ export interface ShikiHighlighterOptions {
 }
 
 /**
- * shiki 适配器（shiki 为可选依赖，动态 import，未安装时不打进产物）。
+ * shiki 适配器（动态 import）。`createEditor` 默认启用本适配器。
  *
- *   const editor = createEditor({
- *     highlight: createShikiHighlighter({ theme: 'github-light' }),
- *   })
+ *   createEditor({ highlight: createShikiHighlighter({ theme: 'github-dark' }) })
  */
 export async function createShikiHighlighter(
   options: ShikiHighlighterOptions = {},

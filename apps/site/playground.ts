@@ -1,12 +1,13 @@
 /**
- * Lazy-loaded editor chunk. Intentionally does NOT import shiki —
- * keeps the playground bundle small for first interaction.
- * Mermaid is pulled via dynamic import inside createMermaidRenderer,
- * so it lands in a separate chunk after the playground mounts.
+ * Lazy-loaded editor chunk. Shiki / mermaid stay external (import map → CDN)
+ * so the first playground paint stays light; they resolve on demand.
  */
-// Import from the workspace package (shiki is only pulled if createShikiHighlighter
-// is called — the landing playground never calls it, so shiki stays out of the graph).
-import { createEditor, createMermaidRenderer, type HandyEditor } from '@21stware/handymd'
+import {
+  createEditor,
+  createMermaidRenderer,
+  createShikiHighlighter,
+  type HandyEditor,
+} from '@21stware/handymd'
 import '@21stware/handymd/style.css'
 import { SAMPLE_MARKDOWN } from './sample'
 
@@ -45,12 +46,15 @@ export async function mountPlayground(
   let fileName = 'welcome.md'
   let readOnly = false
 
+  const dark =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
   const editor = createEditor({
     mount,
     content: SAMPLE_MARKDOWN,
     onChange: () => hooks.onSaveStatus?.('dirty'),
-    // Promise-accepted: mermaid chunk loads after first paint of the playground
-    diagram: createMermaidRenderer({ theme: 'neutral' }),
+    highlight: createShikiHighlighter({ theme: dark ? 'github-dark' : 'github-light' }),
+    // Promise-accepted: mermaid/shiki resolve via import map after first paint
+    diagram: createMermaidRenderer({ theme: dark ? 'dark' : 'neutral' }),
     onSaveStatusChange: (status) => hooks.onSaveStatus?.(status),
     onOpenLink: (href) => {
       window.open(href, '_blank', 'noopener,noreferrer')

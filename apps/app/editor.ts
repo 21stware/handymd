@@ -5,7 +5,12 @@
  *   open / save / save-as / new / drag-drop / OS file_handlers
  */
 import { TextSelection } from 'prosemirror-state'
-import { createEditor, createMermaidRenderer, type HandyEditor } from '@21stware/handymd'
+import {
+  createEditor,
+  createMermaidRenderer,
+  createShikiHighlighter,
+  type HandyEditor,
+} from '@21stware/handymd'
 import '@21stware/handymd/style.css'
 
 export type AppEditorApi = {
@@ -57,6 +62,7 @@ export async function mountAppEditor(
   const editor = createEditor({
     mount,
     content: BLANK,
+    highlight: createShikiHighlighter({ theme: dark ? 'github-dark' : 'github-light' }),
     // Follow system scheme so diagram strokes/labels stay readable.
     diagram: createMermaidRenderer({
       theme: dark ? 'dark' : 'neutral',

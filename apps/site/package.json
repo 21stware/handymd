@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@21stware/handymd": "workspace:*",
-    "mermaid": "^11.12.2"
+    "mermaid": "^11.12.2",
+    "shiki": "^4.4.1"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

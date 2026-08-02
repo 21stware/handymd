@@ -34,6 +34,8 @@ export {
   dedentListItem,
   backspaceBlockFormat,
   arrowLeftSkipPrefix,
+  deleteToContentStart,
+  deleteToContentEnd,
 } from './keymap'
 
 // 表格（编程式创建；无输入触发）

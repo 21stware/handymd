@@ -13,6 +13,7 @@ import { EditorState, TextSelection } from 'prosemirror-state'
 import type { DecorationSet } from 'prosemirror-view'
 import { concealKey, concealPlugin } from '../src/conceal/plugin'
 import { createDiagramRenderCallback } from '../src/diagram'
+import { continueListItem } from '../src/keymap'
 import { markdownToDoc } from '../src/markdown'
 import { schema } from '../src/schema'
 
@@ -143,6 +144,17 @@ describe('incremental decorations match a full rebuild', () => {
     // the boundary between the two halves the split just produced
     state = state.apply(state.tr.join(state.doc.firstChild!.nodeSize))
     expectConsistent(state, 'after join')
+  })
+
+  test('Enter continuing quote/todo keeps node decorations on both lines', () => {
+    for (const md of ['> hello', '- [ ] task', '- item', '## Title']) {
+      let state = start(md)
+      state = caret(state, 1 + md.length)
+      continueListItem(state, (tr) => {
+        state = state.apply(tr)
+      })
+      expectConsistent(state, `after Enter on ${JSON.stringify(md)}`)
+    }
   })
 
   test('deleting a whole block', () => {

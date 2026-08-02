@@ -1,8 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { EditorState, TextSelection, type Command } from 'prosemirror-state'
-import { concealPlugin } from '../src/conceal/plugin'
+import { concealKey, concealPlugin } from '../src/conceal/plugin'
 import { markdownToDoc, docToMarkdown } from '../src/markdown'
-import { continueListItem, toggleInline } from '../src/keymap'
+import {
+  continueListItem,
+  deleteToContentEnd,
+  deleteToContentStart,
+  toggleInline,
+} from '../src/keymap'
 import { normalizePlugin } from '../src/normalize'
 
 function mkState(md: string, cursor?: number): EditorState {
@@ -75,6 +80,44 @@ describe('markdown keymap', () => {
     const state = mkState(md, 1 + md.length)
     const next = run(state, continueListItem)
     expect(docToMarkdown(next.doc)).toBe('')
+  })
+
+  test('Enter continues a quote and keeps both lines as quotes', () => {
+    const md = '> hello'
+    const state = mkState(md, 1 + md.length)
+    const next = run(state, continueListItem)
+    expect(docToMarkdown(next.doc)).toBe('> hello\n> ')
+    const st = concealKey.getState(next)!
+    const nodeDecos = st.set.find().filter((d) => (d.spec as { role?: string }).role === 'node')
+    expect(nodeDecos).toHaveLength(2)
+    expect(nodeDecos.map((d) => `${d.from}-${d.to}`).sort()).toEqual(['0-9', '9-13'])
+  })
+
+  test('Mod-Backspace clears todo content but keeps the checkbox prefix', () => {
+    const md = '- [ ] keep me'
+    const state = mkState(md, 1 + md.length)
+    const next = run(state, deleteToContentStart)
+    expect(docToMarkdown(next.doc)).toBe('- [ ] ')
+  })
+
+  test('Mod-Backspace clears quote / bullet / heading content only', () => {
+    expect(docToMarkdown(run(mkState('> quoted', 1 + '> quoted'.length), deleteToContentStart).doc)).toBe(
+      '> ',
+    )
+    expect(docToMarkdown(run(mkState('- item', 1 + '- item'.length), deleteToContentStart).doc)).toBe(
+      '- ',
+    )
+    expect(docToMarkdown(run(mkState('## Title', 1 + '## Title'.length), deleteToContentStart).doc)).toBe(
+      '## ',
+    )
+  })
+
+  test('Mod-Delete clears from caret to end without touching the prefix', () => {
+    const md = '- [ ] abcdef'
+    // caret after "abc"
+    const state = mkState(md, 1 + '- [ ] abc'.length)
+    const next = run(state, deleteToContentEnd)
+    expect(docToMarkdown(next.doc)).toBe('- [ ] abc')
   })
 
   test('Mod-b wraps then unwraps', () => {

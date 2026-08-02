@@ -173,6 +173,9 @@ function computeAfterDocChange(
 
   const sigs: string[] = new Array(newBlocks.length)
   const dirty: DirtyBlock[] = []
+  // 先 map：结构 split 时 node decoration 可能被丢弃（文本未变也会），
+  // 下面要对「可复用」块做一次完整性检查。
+  const mappedSet = prev.set.map(tr.mapping, nextDoc)
 
   for (let i = 0; i < newBlocks.length; i++) {
     const block = newBlocks[i]!
@@ -182,18 +185,44 @@ function computeAfterDocChange(
 
     const j = newToOld[i]
     // 内容与签名都没变的块，decoration 跟着 map 平移即可，无需重建
-    if (j !== null && prev.sigs[j] === sig && contentReusable(prev.blocks[j]!, block)) continue
+    if (j !== null && prev.sigs[j] === sig && contentReusable(prev.blocks[j]!, block)) {
+      // Enter 续行等 structure split：首行文本不变，但 node deco 会被 map 丢掉，
+      // 表现为 quote/todo/列表上一行样式消失——缺则强制重建。
+      if (blockNeedsNodeDeco(block) && !hasExactNodeDeco(mappedSet, block)) {
+        dirty.push({ block, revealed })
+      }
+      continue
+    }
     dirty.push({ block, revealed })
   }
 
   return {
     blocks: newBlocks,
     sigs,
-    set: patchBlocks(prev.set.map(tr.mapping, nextDoc), nextDoc, dirty, ctx),
+    set: patchBlocks(mappedSet, nextDoc, dirty, ctx),
     composing,
     stale: false,
     readOnly,
   }
+}
+
+/** 块级样式依赖 Decoration.node；普通段落没有 */
+function blockNeedsNodeDeco(block: BlockMeta): boolean {
+  return block.elements.some((el) => el.scope === 'block')
+}
+
+function hasExactNodeDeco(set: DecorationSet, block: BlockMeta): boolean {
+  const end = block.pos + block.size
+  for (const d of set.find(block.pos, end)) {
+    if (
+      (d.spec as { role?: string } | null)?.role === 'node' &&
+      d.from === block.pos &&
+      d.to === end
+    ) {
+      return true
+    }
+  }
+  return false
 }
 
 function selTouchesBlock(block: BlockMeta, sel: SelLike): boolean {

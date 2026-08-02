@@ -12,7 +12,7 @@ import { interactionsPlugin } from './interactions'
 import { markdownKeymap } from './keymap'
 import { normalizePlugin } from './normalize'
 import { caretGuardPlugin } from './caret'
-import { highlightPlugin, type CodeHighlighter } from './highlight'
+import { createShikiHighlighter, highlightPlugin, type CodeHighlighter } from './highlight'
 import { createDiagramRenderCallback, type DiagramRenderer } from './diagram'
 import { Autosave, type AutosaveOptions, type SaveStatus } from './autosave'
 import { insertTable as insertTableCommand, type InsertTableOptions } from './table'
@@ -55,8 +55,8 @@ export interface HandyEditorOptions {
   /** 是否启用有序列表自动重编号，默认 true */
   normalizeOrderedLists?: boolean
   /**
-   * 代码块语法高亮器（推荐 `createShikiHighlighter()`，接受 Promise，
-   * resolve 前先渲染无高亮版本）
+   * 代码块语法高亮器。默认启用 `createShikiHighlighter()`；
+   * 可传入自定义实现或带主题的 Promise。
    */
   highlight?: CodeHighlighter | Promise<CodeHighlighter>
   /**
@@ -162,7 +162,7 @@ export class HandyEditor {
       caretGuardPlugin(),
       markdownKeymap(),
     ]
-    if (this.opts.highlight) plugins.push(highlightPlugin(this.opts.highlight))
+    plugins.push(highlightPlugin(this.opts.highlight ?? createShikiHighlighter()))
     if (this.opts.history !== false) {
       plugins.push(history())
       plugins.push(

@@ -404,6 +404,34 @@ function buildLineElements(
   return els
 }
 
+const REGION_HIT_KINDS = new Set([
+  'fenceOpen',
+  'fenceClose',
+  'diagramOpen',
+  'diagramClose',
+  'diagramLine',
+])
+
+/**
+ * map 后校正块级元素外框。ProseMirror structure split 会把旧块的 `to`/`hitTo`
+ * 映射到新插入行的末尾，导致上一行仍“命中”光标（标题双 badge 等）。
+ */
+function clampMappedBlockBounds(
+  els: ElementRange[],
+  pos: number,
+  size: number,
+  region: { from: number; to: number } | undefined,
+): ElementRange[] {
+  const end = pos + size
+  return els.map((el) => {
+    if (el.scope !== 'block') return el
+    if (REGION_HIT_KINDS.has(el.kind) && region) {
+      return { ...el, from: pos, to: end, hitFrom: region.from, hitTo: region.to }
+    }
+    return { ...el, from: pos, to: end, hitFrom: pos, hitTo: end }
+  })
+}
+
 /** 结构字段是否允许从旧行 map 元素（含 tableEdge / diagram code）。 */
 function lineStructureEqual(
   old: BlockMeta,
@@ -497,9 +525,15 @@ export function parseDocIncremental(
       if (lineStructureEqual(old, text, li, edge, dcode)) {
         const mappedEls = mapElements(old.elements, mapping)
         if (mappedEls) {
-          // fence/diagram 的 hit 区间可能跨行：结构未变时 map 已正确；
-          // 若 region 边界因别处编辑移动，map 也会跟着走。
-          blocks.push({ pos, size, text, line: li, elements: mappedEls })
+          // structure split 时 map 会把块级 from/to/hit 拉到下一行；
+          // markers/content 通常仍准，外框按新块（及 fence region）收紧。
+          blocks.push({
+            pos,
+            size,
+            text,
+            line: li,
+            elements: clampMappedBlockBounds(mappedEls, pos, size, regions.fenceRegion.get(i)),
+          })
           continue
         }
       }

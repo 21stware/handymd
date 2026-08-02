@@ -28,9 +28,7 @@ const result = await Bun.build({
   sourcemap: 'none',
   minify: true,
   splitting: true,
-  // shiki: playground never calls createShikiHighlighter.
-  // mermaid: peer of the SDK; keep it out of Bun.build (full package stalls minify)
-  // and resolve at runtime via import map → esm CDN (see landing HTML injection).
+  // Peers stay external; resolve at runtime via import map → CDN.
   external: ['shiki', 'mermaid'],
   naming: {
     entry: '[name].[ext]',
@@ -82,11 +80,12 @@ await cp('icons/icon-512.png', join(outdir, 'og.png'))
 // ——— 4) Landing HTML: inject base + module entry (editor CSS loads with playground) ———
 const htmlTemplate = await readFile('index.html', 'utf8')
 
-// Bare `import('mermaid')` from createMermaidRenderer stays external; map it to CDN.
-const mermaidImportMap = `<script type="importmap">
+// Bare peer imports stay external; map to CDN at runtime.
+const peerImportMap = `<script type="importmap">
     {
       "imports": {
-        "mermaid": "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"
+        "mermaid": "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs",
+        "shiki": "https://esm.sh/shiki@4.4.1"
       }
     }
     </script>`
@@ -95,7 +94,7 @@ let html = htmlTemplate.replace(
   /<script type="module" src="\.\/main\.ts"><\/script>/,
   [
     `<base href="${base}" />`,
-    mermaidImportMap,
+    peerImportMap,
     `<link rel="modulepreload" href="${jsEntry}" />`,
     `<script type="module" src="${jsEntry}"></script>`,
   ].join('\n    '),

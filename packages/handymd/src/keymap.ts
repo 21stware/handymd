@@ -149,6 +149,55 @@ export function toggleInline(marker: string): Command {
   }
 }
 
+/** 有隐藏前缀的行：内容起点绝对位置；无前缀则 null（交给默认行为） */
+function contentStartPos(state: EditorState, blockPos: number): number | null {
+  const line = lineInfoAt(state, blockPos)
+  if (!line) return null
+  const prefixLen = (line as { prefixLen?: number }).prefixLen
+  if (typeof prefixLen !== 'number' || prefixLen <= 0) return null
+  return blockPos + 1 + prefixLen
+}
+
+/**
+ * Mod-Backspace（macOS「删到行首」）：只清内容，保留 checkbox / 列表 / 引用 / 标题前缀。
+ * 已在内容起点时吞掉按键，避免把前缀一并删掉。
+ */
+export const deleteToContentStart: Command = (state, dispatch) => {
+  const { $from, empty, from, to } = state.selection
+  if ($from.depth !== 1 || !$from.sameParent(state.selection.$to)) return false
+  const contentStart = contentStartPos(state, $from.before())
+  if (contentStart === null) return false
+
+  if (!empty) {
+    const a = Math.max(Math.min(from, to), contentStart)
+    const b = Math.max(from, to)
+    if (b <= contentStart) return true
+    if (dispatch) dispatch(state.tr.delete(a, b).scrollIntoView())
+    return true
+  }
+
+  if (from <= contentStart) return true
+  if (dispatch) dispatch(state.tr.delete(contentStart, from).scrollIntoView())
+  return true
+}
+
+/**
+ * Mod-Delete：删到行尾，同样不碰隐藏前缀。
+ */
+export const deleteToContentEnd: Command = (state, dispatch) => {
+  const { $from, empty, from, to } = state.selection
+  if ($from.depth !== 1 || !$from.sameParent(state.selection.$to)) return false
+  if (contentStartPos(state, $from.before()) === null) return false
+  const end = $from.end()
+  if (!empty) {
+    if (dispatch) dispatch(state.tr.delete(Math.min(from, to), Math.max(from, to)).scrollIntoView())
+    return true
+  }
+  if (from >= end) return true
+  if (dispatch) dispatch(state.tr.delete(from, end).scrollIntoView())
+  return true
+}
+
 /**
  * Backspace 在 permanent 前缀的内容起点：删除整个隐藏前缀（= 关闭该行格式，
  * 与 Bear 一致 —— 列表/引用/标题/待办退格一次变回普通段落）。
@@ -220,6 +269,8 @@ export function markdownKeymap(): Plugin {
       continueTableRow(state, dispatch, view) || continueListItem(state, dispatch, view),
     Backspace: backspaceBlockFormat,
     ArrowLeft: arrowLeftSkipPrefix,
+    'Mod-Backspace': deleteToContentStart,
+    'Mod-Delete': deleteToContentEnd,
     'Mod-b': toggleInline('**'),
     'Mod-i': toggleInline('*'),
     'Mod-e': toggleInline('`'),

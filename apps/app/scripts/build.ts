@@ -25,7 +25,7 @@ const result = await Bun.build({
   sourcemap: 'none',
   minify: true,
   splitting: true,
-  // Optional SDK peers — app doesn't wire them; keep them out of the bundle.
+  // Peer deps resolve at runtime via import map (bundling stalls minify).
   external: ['shiki', 'mermaid'],
   naming: {
     entry: '[name].[ext]',
@@ -86,10 +86,11 @@ await cp('icons/icon-512.png', join(outdir, 'icons/icon-512.png'))
 // ——— 4) HTML: inject base + module entry ———
 const htmlTemplate = await readFile('index.html', 'utf8')
 
-const mermaidImportMap = `<script type="importmap">
+const peerImportMap = `<script type="importmap">
     {
       "imports": {
-        "mermaid": "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"
+        "mermaid": "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs",
+        "shiki": "https://esm.sh/shiki@4.4.1"
       }
     }
     </script>`
@@ -98,7 +99,7 @@ const html = htmlTemplate.replace(
   /<script type="module" src="\.\/main\.ts"><\/script>/,
   [
     `<base href="${base}" />`,
-    mermaidImportMap,
+    peerImportMap,
     // Theme tokens must load after SDK CSS so .editor-mount.handymd wins cascade.
     `<link rel="stylesheet" href="handymd.css" />`,
     `<link rel="stylesheet" href="styles.css" />`,
