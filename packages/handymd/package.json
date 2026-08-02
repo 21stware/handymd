@@ -22,6 +22,7 @@
   ],
   "scripts": {
     "build": "bun run scripts/build.ts",
+    "dev": "bun --hot example/index.html",
     "test": "bun test",
     "bench": "bun test test/perf.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",

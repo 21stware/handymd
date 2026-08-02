@@ -12,6 +12,7 @@
     "build:sdk": "bun --filter='@21stware/handymd' run build",
     "build:app": "bun --filter='handymd-app' run build",
     "build:site": "bun --filter='handymd-site' run build",
+    "dev:sdk": "bun --filter='@21stware/handymd' run dev",
     "dev:app": "bun --filter='handymd-app' run dev",
     "dev:site": "bun --filter='handymd-site' run dev",
     "test": "bun --filter='@21stware/handymd' run test",

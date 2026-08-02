@@ -58,3 +58,40 @@ jobs:
           name: app
           path: apps/app/dist/
           retention-days: 7
+
+  e2e:
+    name: E2E (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
+      # e2e drives the SDK demo host in packages/handymd/example; it is the only
+      # page that wires the optional shiki/mermaid peers and the conflict flow.
+      - name: Start demo host
+        run: bun run dev:sdk &
+
+      - name: Wait for demo host
+        run: |
+          for _ in $(seq 1 60); do
+            curl -sSf http://localhost:3000/ >/dev/null && exit 0
+            sleep 1
+          done
+          echo "demo host did not come up on :3000" >&2
+          exit 1
+
+      - name: E2E
+        run: bun run e2e

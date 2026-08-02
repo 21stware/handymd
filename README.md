@@ -101,8 +101,13 @@ bun run build:sdk            # dist/（ESM + d.ts + style.css）
 bun run build:site           # 文档站 + 嵌入的编辑器 PWA（apps/site/dist，含 dist/app/）
 bun run build:app            # 单独构建纯编辑器（apps/app/dist；Pages 走 build:site 嵌入）
 bun run build                # 三个全部构建
-bun run e2e                  # SDK 端到端（需先启动一个编辑器宿主）
+bun run bench                # 性能预算（keystroke / selection，见 test/perf.test.ts）
+bun run dev:sdk              # SDK 演示宿主（packages/handymd/example，:3000）
+bun run e2e                  # SDK 端到端（真实 Chromium，需先 bun run dev:sdk）
 ```
+
+`e2e` 驱动 `packages/handymd/example` 这个演示宿主：它把 shiki、mermaid、只读切换、
+远端冲突这些可选能力都接了出来，所以是唯一能整体验证 SDK 对外行为的页面。
 
 ## 发布（SDK）
 
