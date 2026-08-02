@@ -135,6 +135,11 @@ stateDiagram-v2
 
 ReadOnly：L3 全强制 Concealed + 拒写；链接/checkbox 展示仍工作。
 
+`editable` 是一个读 `phase` 与 `readOnly` 的闭包，但 ProseMirror 只在 update 时重新求值它。
+`EditorView` 是在 `Loading` 里建出来的，所以每次 phase 迁移都要 `view.setProps({})` 把
+`contenteditable` 重新同步一遍 —— 否则加载完成的编辑器会一直停在不可编辑态。
+`setReadOnly` 走的是 dispatch，本身就带 update，不需要额外处理。
+
 ---
 
 ## L4：持久化
@@ -162,7 +167,7 @@ stateDiagram-v2
 | 设计概念 | 原语 |
 |---|---|
 | 文档模型 | 源码保真 schema：`doc → block+`（一行一块），**无 marks** |
-| 元素范围表 | `concealPlugin` state：`{ blocks, sigs, decoLists, set }` |
+| 元素范围表 | `concealPlugin` state：`{ blocks, sigs, set }` |
 | 隐藏标记 | `Decoration.inline` + `.hm-concealed { font-size: 0 }` |
 | 行首光标垫 | `.hm-caret-pad`（透明、正常字号） |
 | 语义样式 | `Decoration.inline` / `Decoration.node` |
@@ -174,3 +179,35 @@ stateDiagram-v2
 | 撤销重做 | `prosemirror-history`（decoration 不进 history） |
 
 **最重要的架构决策**：L3 状态不存对象。一切改动路径（undo/redo、粘贴、协同 patch）只是产生新的 `(doc, selection, composing, readOnly)` 四元组，结果自动正确。
+
+---
+
+## decoration 的性能约束
+
+`DecorationSet.create()` 的代价是 O(块数 × decoration 数)。在本项目「一行一个 block」的
+扁平文档里 decoration 数正比于块数，所以**重建整个 set 就是 O(N²)**。因此稳态路径不允许
+重建：
+
+| 路径 | 做法 |
+|---|---|
+| 按键（docChanged） | `set.map(tr.mapping, doc)` 一次，然后只对脏块 `remove` + `add` |
+| 移光标 | 只对签名变化的块 `remove` + `add`；无变化直接复用整个 state 对象 |
+| 首次构建 / readOnly 切换 / IME 解冻 | 才允许 `DecorationSet.create()` 全量重建 |
+
+「脏块」= 内容变了（`contentReusable` 为假）或 reveal 签名变了。其余块的 decoration
+靠 `map` 平移即可，位置正确性由 ProseMirror 保证。
+
+两个容易踩的坑：
+
+- `DecorationSet.create / add / remove` 会**就地把传入数组的元素置为 `null`**，所以只能
+  传函数内部的临时数组，绝不能传状态里缓存的数组。
+- `DecorationSet.find(from, to)` 用的是闭区间判定，会把端点正好落在边界上的**相邻块**
+  node decoration 一起带出来；按块取 decoration 时必须再收窄一次。
+
+`test/decoconsistency.test.ts` 用「增量结果 vs 全量重建结果」的差分断言守住这套优化，
+`test/perf.test.ts` 的 `bigdoc_*` 用绝对预算守住不退回 O(N²)。
+
+**已知上限**：每个块级样式都是一个 `Decoration.node`，而 ProseMirror 的
+`NodeType.valid()` 内部走 `Fragment.findIndex()` 线性扫描，所以 `DecorationSet.map()`
+本身仍是 O(块数 × node decoration 数)。4k 行约 7 ms/键、8k 行以上会明显变慢。要彻底
+线性化，需要把块级 class 从 node decoration 改为 `nodeViews` 承载。
