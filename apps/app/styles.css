@@ -151,34 +151,19 @@ button {
   color: var(--hm-fg);
 }
 
-/* Code / fence: same family as paper, not a white floating card */
+/* Code fence: one continuous band — no per-line borders (those looked like a table). */
 .editor-mount.handymd .hm-code-line,
 .editor-mount.handymd .hm-fence-line,
 .editor-mount .handymd .hm-code-line,
 .editor-mount .handymd .hm-fence-line {
   background: var(--hm-codeblock-bg);
-}
-
-.editor-mount.handymd .hm-fence-open,
-.editor-mount .handymd .hm-fence-open {
-  border-radius: 8px 8px 0 0;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
-}
-
-.editor-mount.handymd .hm-fence-close,
-.editor-mount .handymd .hm-fence-close {
-  border-radius: 0 0 8px 8px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
-}
-
-.editor-mount.handymd .hm-code-line:not(.hm-fence-open):not(.hm-fence-close),
-.editor-mount .handymd .hm-code-line:not(.hm-fence-open):not(.hm-fence-close) {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+  box-shadow: none;
 }
 
 .editor-mount.handymd .hm-code-lang,
 .editor-mount .handymd .hm-code-lang {
   color: var(--hm-fg-dim);
+  opacity: 0.7;
 }
 
 .editor-mount.handymd .hm-tag,
