@@ -1,7 +1,7 @@
 import type { Node as PMNode } from 'prosemirror-model'
 import type { Mapping } from 'prosemirror-transform'
 import type { ElementRange, RelElement, Span } from '../elements'
-import { classifyLines, type LineInfo } from './blocks'
+import { classifyLines, lineInfoEqual, type LineInfo } from './blocks'
 import { parseInlineCached } from './inline'
 import { parseTableRow } from './table'
 
@@ -413,7 +413,7 @@ function lineStructureEqual(
   diagramCode: string | undefined,
 ): boolean {
   if (old.text !== text) return false
-  if (JSON.stringify(old.line) !== JSON.stringify(li)) return false
+  if (!lineInfoEqual(old.line, li)) return false
   const oldEdge = old.elements.find(
     (e) => e.kind === 'tableHeader' || e.kind === 'tableRow' || e.kind === 'tableSep',
   )?.attrs?.tableEdge

@@ -29,10 +29,19 @@
  * | keystroke 1k lines × 30 | ≤ 3000 ms total (~100 ms/key) |
  * | selection 1k × 50 | ≤ 500 ms total |
  * | select_noop reuse | must reuse plugin state object |
+ * | keystroke 4k lines | ≤ 50 ms/key (guards the whole-doc-rebuild regression) |
+ * | selection 4k lines | ≤ 2 ms/move (must stay flat in doc size) |
  *
  * Note: on tiny absolute times (sub-ms parse), map overhead can make
  * incremental *slower* than full parse — that is expected. Gains show up
  * when lines carry heavy inline markup / when decoration map reuses DOM.
+ *
+ * The last two budgets exist because the conceal plugin used to rebuild the
+ * entire DecorationSet on every keystroke and every caret move.
+ * DecorationSet.create() costs O(blocks × decorations), so that made both
+ * paths quadratic in document size (122 ms/key at 4k lines). They are now
+ * map + per-dirty-block remove/add. The budgets are ~5× looser than measured
+ * so they survive slow CI, while the old behaviour would blow past them.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -197,11 +206,11 @@ describe('perf metrics (soft budgets)', () => {
 
     // Build a list of positions: walk through every 20th line start
     const positions: number[] = []
-    let pos = 0
-    state.doc.forEach((node, offset) => {
+    let line = 0
+    state.doc.forEach((_node, offset) => {
       if (positions.length >= K) return
-      if (positions.length % 1 === 0) positions.push(offset + 1)
-      pos = offset
+      if (line % 20 === 0) positions.push(offset + 1)
+      line++
     })
     while (positions.length < K) positions.push(1)
 
@@ -243,6 +252,64 @@ describe('perf metrics (soft budgets)', () => {
 
     expect(ok).toBe(true)
     expect(reused).toBe(true)
+  })
+
+  test('large-document editing stays out of the quadratic regime', () => {
+    const N = 4000
+    const K = 20
+    const md = linesDoc(N)
+
+    // —— typing in the middle of a large doc ——
+    let state = EditorState.create({
+      doc: markdownToDoc(md),
+      plugins: [concealPlugin()],
+    })
+    const mid = Math.floor(state.doc.content.size / 2)
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, mid)))
+
+    let t0 = performance.now()
+    for (let i = 0; i < K; i++) {
+      const p = state.selection.from
+      state = state.apply(state.tr.insertText('x', p, p))
+    }
+    const perKey = (performance.now() - t0) / K
+
+    // —— caret sweep across a large doc ——
+    let selState = EditorState.create({
+      doc: markdownToDoc(md),
+      plugins: [concealPlugin()],
+    })
+    t0 = performance.now()
+    for (let i = 0; i < K; i++) {
+      const p = Math.min(1 + i * 37, selState.doc.content.size - 1)
+      selState = selState.apply(
+        selState.tr.setSelection(TextSelection.create(selState.doc, p)),
+      )
+    }
+    const perMove = (performance.now() - t0) / K
+
+    const keyBudget = 50
+    const moveBudget = 2
+    const okKey = perKey <= keyBudget
+    const okMove = perMove <= moveBudget
+
+    report([
+      {
+        metric: `bigdoc_keystroke_${N}`,
+        value: `${perKey.toFixed(2)} ms/key`,
+        budget: `≤ ${keyBudget} ms`,
+        ok: okKey,
+      },
+      {
+        metric: `bigdoc_selection_${N}`,
+        value: `${perMove.toFixed(3)} ms/move`,
+        budget: `≤ ${moveBudget} ms`,
+        ok: okMove,
+      },
+    ])
+
+    expect(okKey).toBe(true)
+    expect(okMove).toBe(true)
   })
 
   test('mixed workload snapshot (doc for dashboards)', () => {

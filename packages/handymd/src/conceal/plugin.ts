@@ -1,10 +1,10 @@
 import type { EditorState, Transaction } from 'prosemirror-state'
 import { Plugin, PluginKey } from 'prosemirror-state'
-import type { Mapping } from 'prosemirror-transform'
 import type { Node as PMNode } from 'prosemirror-model'
 import { Decoration, DecorationSet } from 'prosemirror-view'
 import type { DiagramRenderCallback } from '../diagram'
 import { parseDoc, parseDocIncremental, type BlockMeta } from '../parse/docparse'
+import { lineInfoEqual } from '../parse/blocks'
 import { isRevealed, revealSignature, type SelLike } from './hittest'
 import { buildBlockDecos, type DecorationContext } from './decorations'
 import { spansIntersect } from '../elements'
@@ -14,11 +14,16 @@ import { spansIntersect } from '../elements'
  *
  *   Reparse   → parseDocIncremental（未改行 map 元素；脏行重解析 + 行内缓存）
  *   HitTest   → isRevealed(el, selection, readOnly) 纯函数
- *   Decorate  → buildBlockDecos；选区路径只动签名变化的块；
- *               文档变更路径对「内容未变」的块 map 复用 decoration
+ *   Decorate  → 整篇 DecorationSet 只 map 一次，然后对「脏块」做 remove/add
  *
  * 关键架构决策：不为每个元素建状态对象。结果由
  * (doc, selection, composing, readOnly) 推导。
+ *
+ * 性能约束（决定了这里的写法）：DecorationSet.create() 的代价是
+ * O(块数 × decoration 数)，在扁平的「一行一个 block」文档里就是 O(N²)。
+ * 所以稳态路径（按键 / 移光标）绝不能重建整个 set —— 只能 map + 局部
+ * remove/add，这两者的代价只跟脏块数量有关。create 仅用于首次构建与
+ * 强制全量重算。
  *
  * IME 冻结：composing 期间 decoration 只 map，禁止重建与状态迁移。
  */
@@ -34,8 +39,6 @@ export interface ConcealState {
   blocks: BlockMeta[]
   /** 每块的 reveal 签名 */
   sigs: string[]
-  /** 每块缓存的 decoration 数组（签名/内容不变时复用或 map） */
-  decoLists: Decoration[][]
   set: DecorationSet
   composing: boolean
   /** composing 期间发生过 docChanged，解冻后需要全量重算 */
@@ -54,20 +57,17 @@ function computeAll(
 ): ConcealState {
   const blocks = parseDoc(doc)
   const sigs: string[] = []
-  const decoLists: Decoration[][] = []
   const all: Decoration[] = []
   for (const block of blocks) {
     const revealed = block.elements.map((el) => isRevealed(el, sel, readOnly))
-    const decos = buildBlockDecos(block, revealed, ctx)
     sigs.push(revealSignature(revealed))
-    decoLists.push(decos)
-    for (const d of decos) all.push(d)
+    for (const d of buildBlockDecos(block, revealed, ctx)) all.push(d)
   }
   return {
+    // 注意：DecorationSet.create 会就地把 all 的元素置 null，所以只能传自己的临时数组
+    set: DecorationSet.create(doc, all),
     blocks,
     sigs,
-    decoLists,
-    set: DecorationSet.create(doc, all),
     composing,
     stale: false,
     readOnly,
@@ -77,9 +77,8 @@ function computeAll(
 /** 内容是否可复用（仅位置平移）—— 影响 decoration 的字段一致即可 map */
 function contentReusable(a: BlockMeta, b: BlockMeta): boolean {
   if (a.text !== b.text) return false
-  if (a.line.t !== b.line.t) return false
   // 行类型携带的关键字段（heading level / fence info / ordered num…）
-  if (JSON.stringify(a.line) !== JSON.stringify(b.line)) return false
+  if (!lineInfoEqual(a.line, b.line)) return false
 
   const edgeA = a.elements.find(
     (e) => e.kind === 'tableHeader' || e.kind === 'tableRow' || e.kind === 'tableSep',
@@ -110,40 +109,47 @@ function findBlockAt(blocks: BlockMeta[], pos: number): number {
   return -1
 }
 
-/** Map a per-block deco list through a doc transaction; null = must rebuild. */
-function mapDecoList(
-  list: Decoration[],
-  mapping: Mapping,
-  oldDoc: PMNode,
-  newDoc: PMNode,
-): Decoration[] | null {
-  if (list.length === 0) return []
-  try {
-    const set = DecorationSet.create(oldDoc, list)
-    const mapped = set.map(mapping, newDoc)
-    return mapped.find()
-  } catch {
-    return null
-  }
+/** 需要重建 decoration 的块 */
+interface DirtyBlock {
+  block: BlockMeta
+  revealed: boolean[]
 }
 
-function flattenDecos(decoLists: Decoration[][]): Decoration[] {
-  const all: Decoration[] = []
-  for (const list of decoLists) {
-    for (const d of list) all.push(d)
+/**
+ * 把脏块的 decoration 换掉，其余原样保留。
+ *
+ * DecorationSet.find 用的是闭区间判定，会把相邻块的 node decoration
+ * （端点正好落在边界上）一起带出来，所以要收窄到真正落在本块内的那些，
+ * 否则会误删邻居的块级样式。
+ */
+function patchBlocks(
+  set: DecorationSet,
+  doc: PMNode,
+  dirty: DirtyBlock[],
+  ctx: DecorationContext,
+): DecorationSet {
+  if (dirty.length === 0) return set
+  const remove: Decoration[] = []
+  const add: Decoration[] = []
+  for (const { block, revealed } of dirty) {
+    const end = block.pos + block.size
+    for (const d of set.find(block.pos, end)) {
+      if (d.to > block.pos && d.from < end) remove.push(d)
+    }
+    for (const d of buildBlockDecos(block, revealed, ctx)) add.push(d)
   }
-  return all
+  // remove/add 同样会就地改写传入的数组，这两个都是本函数的临时数组
+  return set.remove(remove).add(doc, add)
 }
 
 /**
  * 文档变更：
  *   parse → parseDocIncremental（未改行跳过 parseInline）
- *   deco  → 内容稳定块 map 复用 decoration，脏块 rebuild
+ *   deco  → 整篇 map 一次，只有内容或签名变了的块才 remove/add
  */
 function computeAfterDocChange(
   tr: Transaction,
   prev: ConcealState,
-  oldDoc: PMNode,
   nextDoc: PMNode,
   sel: SelLike,
   readOnly: boolean,
@@ -166,7 +172,7 @@ function computeAfterDocChange(
   }
 
   const sigs: string[] = new Array(newBlocks.length)
-  const decoLists: Decoration[][] = new Array(newBlocks.length)
+  const dirty: DirtyBlock[] = []
 
   for (let i = 0; i < newBlocks.length; i++) {
     const block = newBlocks[i]!
@@ -175,29 +181,15 @@ function computeAfterDocChange(
     sigs[i] = sig
 
     const j = newToOld[i]
-    if (j !== null) {
-      const oldBlock = prev.blocks[j]!
-      if (contentReusable(oldBlock, block)) {
-        if (prev.sigs[j] === sig) {
-          const mapped = mapDecoList(prev.decoLists[j]!, tr.mapping, oldDoc, nextDoc)
-          if (mapped) {
-            decoLists[i] = mapped
-            continue
-          }
-        } else {
-          decoLists[i] = buildBlockDecos(block, revealed, ctx)
-          continue
-        }
-      }
-    }
-    decoLists[i] = buildBlockDecos(block, revealed, ctx)
+    // 内容与签名都没变的块，decoration 跟着 map 平移即可，无需重建
+    if (j !== null && prev.sigs[j] === sig && contentReusable(prev.blocks[j]!, block)) continue
+    dirty.push({ block, revealed })
   }
 
   return {
     blocks: newBlocks,
     sigs,
-    decoLists,
-    set: DecorationSet.create(nextDoc, flattenDecos(decoLists)),
+    set: patchBlocks(prev.set.map(tr.mapping, nextDoc), nextDoc, dirty, ctx),
     composing,
     stale: false,
     readOnly,
@@ -228,39 +220,32 @@ function computeAfterSelectionWithDoc(
   readOnly: boolean,
   ctx: DecorationContext,
 ): ConcealState {
-  const candidates = new Set<number>()
+  const dirty: DirtyBlock[] = []
+  let sigs: string[] | null = null
+
   for (let i = 0; i < prev.blocks.length; i++) {
     const block = prev.blocks[i]!
-    if (selTouchesBlock(block, oldSel) || selTouchesBlock(block, newSel)) {
-      candidates.add(i)
+    if (
+      !selTouchesBlock(block, oldSel) &&
+      !selTouchesBlock(block, newSel) &&
+      !sigHasReveal(prev.sigs[i]!)
+    ) {
       continue
     }
-    if (sigHasReveal(prev.sigs[i]!)) candidates.add(i)
-  }
-
-  if (candidates.size === 0) return prev
-
-  let changed = false
-  const sigs = prev.sigs.slice()
-  const decoLists = prev.decoLists.slice()
-
-  for (const i of candidates) {
-    const block = prev.blocks[i]!
     const revealed = block.elements.map((el) => isRevealed(el, newSel, readOnly))
     const sig = revealSignature(revealed)
     if (sig === prev.sigs[i]) continue
-    changed = true
+    if (!sigs) sigs = prev.sigs.slice()
     sigs[i] = sig
-    decoLists[i] = buildBlockDecos(block, revealed, ctx)
+    dirty.push({ block, revealed })
   }
 
-  if (!changed) return prev
+  if (!sigs) return prev
 
   return {
     ...prev,
     sigs,
-    decoLists,
-    set: DecorationSet.create(doc, flattenDecos(decoLists)),
+    set: patchBlocks(prev.set, doc, dirty, ctx),
   }
 }
 
@@ -319,16 +304,7 @@ export function concealPlugin(options: ConcealOptions = {}): Plugin<ConcealState
 
         // —— 文档变化：parse 全量 + decoration 增量 map/rebuild ——
         if (tr.docChanged) {
-          return computeAfterDocChange(
-            tr,
-            prev,
-            old.doc,
-            next.doc,
-            next.selection,
-            readOnly,
-            composing,
-            ctx,
-          )
+          return computeAfterDocChange(tr, prev, next.doc, next.selection, readOnly, composing, ctx)
         }
 
         // —— 纯 selection 移动：局部 hitTest ——

@@ -32,6 +32,24 @@ export type LineInfo =
 
 export type LineType = LineInfo['t']
 
+/**
+ * LineInfo 结构相等。热路径（每次按键对每一行调用数次）上跑，
+ * 所以走字段比较而不是 JSON.stringify —— 同变体的字段集合固定，
+ * 逐 key 比较即可，且不受 key 顺序影响。
+ */
+export function lineInfoEqual(a: LineInfo, b: LineInfo): boolean {
+  if (a === b) return true
+  if (a.t !== b.t) return false
+  const ra = a as unknown as Record<string, unknown>
+  const rb = b as unknown as Record<string, unknown>
+  const keys = Object.keys(ra)
+  if (keys.length !== Object.keys(rb).length) return false
+  for (const k of keys) {
+    if (ra[k] !== rb[k]) return false
+  }
+  return true
+}
+
 /** 视为 diagram block 的围栏语言（info string 首个 token，小写比较） */
 const DIAGRAM_LANGS = new Set(['mermaid'])
 
