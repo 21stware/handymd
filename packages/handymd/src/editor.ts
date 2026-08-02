@@ -112,6 +112,11 @@ export class HandyEditor {
   private setPhase(phase: EditorPhase): void {
     if (this.phaseValue === phase) return
     this.phaseValue = phase
+    // `editable` closes over phaseValue, but ProseMirror only re-reads props on
+    // update. createView() runs while the phase is still 'loading', so without
+    // this the view would stay contenteditable=false until some unrelated
+    // transaction happened to refresh it.
+    this.view?.setProps({})
     this.opts.onPhaseChange?.(phase)
     this.emit('phase', phase)
   }

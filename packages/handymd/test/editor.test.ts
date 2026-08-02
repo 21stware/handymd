@@ -39,6 +39,28 @@ describe('HandyEditor lifecycle (L1)', () => {
     await ed.destroy()
   })
 
+  test('async load leaves the view editable without any further transaction', async () => {
+    // The view is constructed while the phase is still 'loading'; ProseMirror
+    // caches `editable` until the next update, so a freshly loaded editor used
+    // to stay contenteditable=false until something else dispatched.
+    const ed = createEditor({ mount: mount(), load: async () => '# hi' })
+    await sleep(5)
+    expect(ed.phase).toBe('ready')
+    expect(ed.view!.editable).toBe(true)
+    expect(ed.view!.dom.getAttribute('contenteditable')).toBe('true')
+    await ed.destroy()
+  })
+
+  test('sync content is editable too, and readOnly still wins', async () => {
+    const ed = createEditor({ mount: mount(), content: '# hi' })
+    expect(ed.view!.editable).toBe(true)
+    ed.setReadOnly(true)
+    expect(ed.view!.editable).toBe(false)
+    ed.setReadOnly(false)
+    expect(ed.view!.editable).toBe(true)
+    await ed.destroy()
+  })
+
   test('editing marks dirty and autosaves; onChange fires', async () => {
     const saved: string[] = []
     const changes: string[] = []
