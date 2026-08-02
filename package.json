@@ -15,6 +15,7 @@
     "dev:app": "bun --filter='handymd-app' run dev",
     "dev:site": "bun --filter='handymd-site' run dev",
     "test": "bun --filter='@21stware/handymd' run test",
+    "bench": "bun --filter='@21stware/handymd' run bench",
     "typecheck": "bun --filter='*' run typecheck",
     "e2e": "bun --filter='@21stware/handymd' run e2e"
   },

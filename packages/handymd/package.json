@@ -23,6 +23,7 @@
   "scripts": {
     "build": "bun run scripts/build.ts",
     "test": "bun test",
+    "bench": "bun test test/perf.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "e2e": "bun run scripts/e2e.ts",
     "prepublishOnly": "bun run typecheck && bun test && bun run build"
