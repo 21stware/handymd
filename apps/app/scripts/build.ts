@@ -61,7 +61,6 @@ for (const leftover of ['main.css']) {
 // ——— 2) Static assets ———
 await cp('styles.css', join(outdir, 'styles.css'))
 await cp('favicon.svg', join(outdir, 'favicon.svg'))
-await cp('sw.js', join(outdir, 'sw.js'))
 
 // Manifest: pin id/start_url/scope to the deploy BASE so nested Pages paths work.
 const manifest = JSON.parse(await readFile('manifest.webmanifest', 'utf8')) as {
@@ -97,6 +96,44 @@ const html = htmlTemplate.replace(
 )
 
 await writeFile(join(outdir, 'index.html'), html)
+
+// ——— 5) Service worker: precache the real bundle, not just the shell ———
+// Bundle/chunk names are only known here, and a shell-only precache makes
+// offline support depend on the browser HTTP cache rather than the SW.
+const chunkNames = names
+  .filter((n) => n.endsWith('.js') && n !== jsEntry)
+  .map((n) => `chunks/${n}`)
+const precache = [
+  './',
+  './index.html',
+  './styles.css',
+  './manifest.webmanifest',
+  './favicon.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  `./${jsEntry}`,
+  ...(cssOut ? ['./handymd.css'] : []),
+  ...chunkNames.map((c) => `./${c}`),
+]
+
+// Build id = hash of everything we precache, so a changed asset both busts the
+// cache name and lets `activate` evict the previous one.
+const hasher = new Bun.CryptoHasher('sha256')
+for (const rel of precache) {
+  const file = Bun.file(join(outdir, rel === './' ? 'index.html' : rel.replace(/^\.\//, '')))
+  if (await file.exists()) hasher.update(new Uint8Array(await file.arrayBuffer()))
+}
+const buildId = hasher.digest('hex').slice(0, 12)
+
+const swSrc = await readFile('sw.js', 'utf8')
+const swOut = swSrc
+  .replace(/^const BUILD_ID = .*$/m, `const BUILD_ID = ${JSON.stringify(buildId)}`)
+  .replace(/^const PRECACHE = \[[\s\S]*?\]$/m, `const PRECACHE = ${JSON.stringify(precache)}`)
+if (!swOut.includes(buildId) || !swOut.includes(`./${jsEntry}`)) {
+  console.error('app build: failed to inject precache into sw.js')
+  process.exit(1)
+}
+await writeFile(join(outdir, 'sw.js'), swOut)
 
 // Size report
 const sizes = await Promise.all(
