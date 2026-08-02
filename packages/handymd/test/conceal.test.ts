@@ -111,6 +111,33 @@ describe('conceal/reveal state machine (L3)', () => {
     expect(Object.is(concealKey.getState(after), before)).toBe(true)
   })
 
+  test('doc edit keeps distant block decorations valid (incremental map path)', () => {
+    // 长文：只改首行，末行 **bold** 仍应有 conceal marker（map 复用路径不能丢 deco）
+    const lines = Array.from({ length: 40 }, (_, i) => `line ${i} filler text`)
+    lines[0] = 'HEAD'
+    lines[39] = 'tail **bold** end'
+    const md = lines.join('\n')
+    let state = mkState(md)
+    state = setCursor(state, posOf(md, 'tail'))
+    const before = concealKey.getState(state)!
+    expect(before.blocks.length).toBe(40)
+
+    // 改首行文本
+    const headEnd = state.doc.child(0).nodeSize - 1 // inside first block content
+    state = state.apply(state.tr.insertText('X', 1, 1))
+    const after = concealKey.getState(state)!
+    expect(after.blocks.length).toBe(40)
+    expect(after.blocks[0]!.text.startsWith('X')).toBe(true)
+
+    const strong = after.set.find(
+      undefined,
+      undefined,
+      (spec) => (spec as Spec).kind === 'strong' && (spec as Spec).role === 'marker',
+    )
+    expect(strong.length).toBe(2)
+    expect(strong.every((d) => (d.spec as Spec).concealed)).toBe(true)
+  })
+
   test('readOnly forces all Concealed even with cursor inside', () => {
     let state = mkState(MD) // cursor 在 heading 内 → Revealed
     state = state.apply(state.tr.setMeta(concealKey, { readOnly: true }))

@@ -90,11 +90,15 @@ function syncSettingsForm() {
   if (setWidthVal) setWidthVal.textContent = String(settings.contentWidth)
 }
 
-function commitSettings(next: AppSettings) {
+let settingsSaveTimer = 0
+function commitSettings(next: AppSettings, opts: { persist?: boolean } = {}) {
   settings = next
   applySettings(settings)
-  saveSettings(settings)
   syncSettingsForm()
+  // Persist debounced — sliders fire many input events
+  if (opts.persist === false) return
+  window.clearTimeout(settingsSaveTimer)
+  settingsSaveTimer = window.setTimeout(() => saveSettings(settings), 120)
 }
 
 function openSettings() {
@@ -143,6 +147,8 @@ setWidth?.addEventListener('input', () => {
   if (setWidthVal) setWidthVal.textContent = String(contentWidth)
   commitSettings({ ...settings, contentWidth })
 })
+// Flush prefs when the panel closes / page hides
+window.addEventListener('pagehide', () => saveSettings(settings))
 
 // ——— Bootstrap editor ———
 async function ensureEditor(): Promise<AppEditorApi> {

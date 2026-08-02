@@ -121,7 +121,8 @@ function fenceOpenDecos(block: BlockMeta, el: ElementRange, rev: boolean, out: D
     widget(
       el,
       el.markers[0].from,
-      `lang:${el.from}:${info}`,
+      // content key — no absolute pos (survives map/rebuild when only positions shift)
+      `lang:${info}`,
       () => {
         const badge = document.createElement('span')
         badge.className = 'hm-code-lang'
@@ -196,7 +197,7 @@ export function buildBlockDecos(
           widget(
             el,
             el.from,
-            `img:${el.from}:${href}`,
+            `img:${href}\0${alt}`,
             () => {
               const img = document.createElement('img')
               img.className = 'hm-image'
@@ -226,7 +227,7 @@ export function buildBlockDecos(
           widget(
             el,
             at,
-            `hb:${at}:${level}`,
+            `hb:${level}`,
             () => {
               const badge = document.createElement('span')
               badge.className = 'hm-heading-badge'
@@ -261,7 +262,8 @@ export function buildBlockDecos(
           widget(
             el,
             at,
-            `chk:${at}:${checked}`,
+            // line text disambiguates multiple todos; pos omitted so map/rebuild stays stable
+            `chk:${checked}:${block.text}`,
             () => {
               const input = document.createElement('input')
               input.type = 'checkbox'
@@ -285,7 +287,7 @@ export function buildBlockDecos(
           widget(
             el,
             at,
-            `dot:${at}`,
+            `dot:${block.text}`,
             () => {
               const dot = document.createElement('span')
               dot.className = 'hm-bullet-dot'
@@ -319,7 +321,7 @@ export function buildBlockDecos(
           widget(
             el,
             el.markers[0].from,
-            `hr:${el.from}`,
+            `hr:${block.text}`,
             () => {
               const hr = document.createElement('hr')
               hr.className = 'hm-hr'
@@ -366,7 +368,7 @@ export function buildBlockDecos(
         widget(
           el,
           el.markers[0].from,
-          `dg:${el.from}:${lang}:${code}`,
+          `dg:${lang}\0${code}`,
           () => {
             const container = document.createElement('div')
             container.className = 'hm-diagram'
@@ -424,7 +426,7 @@ export function buildBlockDecos(
           widget(
             el,
             lineFrom,
-            `tr:${el.kind}:${lineFrom}:${block.text}`,
+            `tr:${el.kind}\0${block.text}`,
             () => buildTableRowVisual(block, el.kind as 'tableHeader' | 'tableRow'),
             out,
             -1,
