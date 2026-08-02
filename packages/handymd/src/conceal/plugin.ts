@@ -4,7 +4,7 @@ import type { Mapping } from 'prosemirror-transform'
 import type { Node as PMNode } from 'prosemirror-model'
 import { Decoration, DecorationSet } from 'prosemirror-view'
 import type { DiagramRenderCallback } from '../diagram'
-import { parseDoc, type BlockMeta } from '../parse/docparse'
+import { parseDoc, parseDocIncremental, type BlockMeta } from '../parse/docparse'
 import { isRevealed, revealSignature, type SelLike } from './hittest'
 import { buildBlockDecos, type DecorationContext } from './decorations'
 import { spansIntersect } from '../elements'
@@ -12,7 +12,7 @@ import { spansIntersect } from '../elements'
 /**
  * L3 conceal/reveal 状态机的宿主插件，同时承担 L2 管线的 Reconciling 阶段：
  *
- *   Reparse   → parseDoc（行内解析带文本缓存）
+ *   Reparse   → parseDocIncremental（未改行 map 元素；脏行重解析 + 行内缓存）
  *   HitTest   → isRevealed(el, selection, readOnly) 纯函数
  *   Decorate  → buildBlockDecos；选区路径只动签名变化的块；
  *               文档变更路径对「内容未变」的块 map 复用 decoration
@@ -136,8 +136,9 @@ function flattenDecos(decoLists: Decoration[][]): Decoration[] {
 }
 
 /**
- * 文档变更：parse 全量（分类依赖全局 fence/table 状态机），
- * decoration 对「映射后内容未变」的块 map 复用，仅重建脏块。
+ * 文档变更：
+ *   parse → parseDocIncremental（未改行跳过 parseInline）
+ *   deco  → 内容稳定块 map 复用 decoration，脏块 rebuild
  */
 function computeAfterDocChange(
   tr: Transaction,
@@ -149,7 +150,7 @@ function computeAfterDocChange(
   composing: boolean,
   ctx: DecorationContext,
 ): ConcealState {
-  const newBlocks = parseDoc(nextDoc)
+  const newBlocks = parseDocIncremental(nextDoc, prev.blocks, tr.mapping)
   const newToOld: (number | null)[] = new Array(newBlocks.length).fill(null)
 
   for (let j = 0; j < prev.blocks.length; j++) {
@@ -158,7 +159,7 @@ function computeAfterDocChange(
     const i = findBlockAt(newBlocks, mapped.pos)
     if (i < 0) continue
     if (newToOld[i] !== null) {
-      // 映射冲突（复杂 replace/合并）→ 安全回退全量 decorate
+      // 映射冲突 → 全量 parse + decorate（最稳）
       return computeAll(nextDoc, sel, readOnly, composing, ctx)
     }
     newToOld[i] = j
@@ -184,7 +185,6 @@ function computeAfterDocChange(
             continue
           }
         } else {
-          // 内容相同、仅 reveal 变化：按新绝对坐标重建
           decoLists[i] = buildBlockDecos(block, revealed, ctx)
           continue
         }

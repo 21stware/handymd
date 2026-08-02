@@ -121,13 +121,17 @@ describe('conceal/reveal state machine (L3)', () => {
     state = setCursor(state, posOf(md, 'tail'))
     const before = concealKey.getState(state)!
     expect(before.blocks.length).toBe(40)
+    const distantElsBefore = before.blocks[39]!.elements
 
     // 改首行文本
-    const headEnd = state.doc.child(0).nodeSize - 1 // inside first block content
     state = state.apply(state.tr.insertText('X', 1, 1))
     const after = concealKey.getState(state)!
     expect(after.blocks.length).toBe(40)
     expect(after.blocks[0]!.text.startsWith('X')).toBe(true)
+    // 远端行元素应来自 map（坐标平移），kind/结构保留
+    expect(after.blocks[39]!.elements.map((e) => e.kind)).toEqual(
+      distantElsBefore.map((e) => e.kind),
+    )
 
     const strong = after.set.find(
       undefined,
