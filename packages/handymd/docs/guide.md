@@ -212,7 +212,7 @@ createEditor({ mount, content, diagram })
 | `⌘/Ctrl+E` | 切换 `` `code` `` |
 | `⌘/Ctrl+Shift+X` | 切换 `~~strike~~` |
 | `⌘/Ctrl+Shift+H` | 切换 `==mark==` |
-| `Enter` | 列表/引用/标题续行；空前缀行退出；**标题行首**在上方插空行并保持标题 |
+| `Enter` | 列表/引用续行；空前缀行退出；**标题行首**在上方插空行并保持标题；**标题行中/行末**拆出普通段落（不续 `#`） |
 | `Backspace`（内容起点） | 去掉该行块级格式 |
 | `ArrowLeft`（内容起点） | 跳到上一行行尾（不进隐藏前缀） |
 | `Tab` / `Shift+Tab` | 列表缩进 / 反缩进 |

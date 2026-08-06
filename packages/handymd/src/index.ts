@@ -28,12 +28,14 @@ export { normalizePlugin } from './normalize'
 export { caretGuardPlugin } from './caret'
 export {
   markdownKeymap,
+  headingInputPlugin,
   continueListItem,
   toggleInline,
   indentListItem,
   dedentListItem,
   backspaceBlockFormat,
   arrowLeftSkipPrefix,
+  arrowUpToPrevContentEnd,
   deleteToContentStart,
   deleteToContentEnd,
 } from './keymap'

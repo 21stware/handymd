@@ -171,6 +171,17 @@
 .handymd .hm-list-num {
   color: var(--hm-accent);
 }
+/* Leading indent spaces → fixed nest gutter (width set inline in rem). */
+.handymd .hm-list-indent {
+  display: inline-block;
+  font-size: 0 !important;
+  letter-spacing: 0 !important;
+  line-height: 0;
+  height: 1rem;
+  vertical-align: text-top;
+  overflow: hidden;
+  white-space: pre;
+}
 
 /* 代码块：围栏行 + 代码行共用底色，视觉上连成一个面板 */
 .handymd .hm-code-line,

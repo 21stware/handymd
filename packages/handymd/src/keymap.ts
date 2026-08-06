@@ -1,7 +1,6 @@
 import type { Command, EditorState, Transaction } from 'prosemirror-state'
-import { TextSelection } from 'prosemirror-state'
+import { Plugin, TextSelection } from 'prosemirror-state'
 import { keymap } from 'prosemirror-keymap'
-import type { Plugin } from 'prosemirror-state'
 import { schema } from './schema'
 import { concealKey } from './conceal/plugin'
 import { permanentPrefixAt } from './caret'
@@ -42,20 +41,21 @@ function continuationPrefix(line: LineInfo, text: string): string | null {
     }
     case 'quote':
       return text.slice(0, line.prefixLen)
-    case 'heading':
-      return `${'#'.repeat(line.level)} `
+    // 标题不续行：行中/行末 Enter 拆出普通段落（见 continueListItem）
     default:
       return null
   }
 }
 
 /**
- * Enter：列表/引用/标题续行。
+ * Enter：列表/引用续行；标题特殊处理。
  *
- * 标题行首（光标在内容起点、行非空）特殊处理：在上方插入空行，
- * `# Title` 整行保持标题 —— 避免默认 split 把 `# ` 留在上一行、正文变纯文本。
+ * 标题：
+ *   - 行首（内容起点、行非空）：上方插空行，`# Title` 整行保持标题
+ *   - 行中/行末：split，下一行是普通段落（不继承 `#`）
+ *   - 空标题再回车：退出标题格式
  *
- * 空前缀行再回车 = 退出块格式。
+ * 列表/引用：空前缀行再回车 = 退出块格式；否则续前缀。
  */
 export const continueListItem: Command = (state, dispatch) => {
   const { $from, empty } = state.selection
@@ -65,28 +65,46 @@ export const continueListItem: Command = (state, dispatch) => {
   const line = lineInfoAt(state, blockPos)
   if (!line) return false
   const text = $from.parent.textContent
-  const prefix = continuationPrefix(line, text)
-  if (prefix === null) return false
 
   const prefixLen = (line as { prefixLen?: number }).prefixLen ?? 0
   const contentEmpty = text.slice(prefixLen).trim() === ''
   const atContentStart = empty && $from.parentOffset === prefixLen
+
+  // ——— 标题：不续 `#`，只做行首插空 / 行中拆段 / 空行退出 ———
+  if (line.t === 'heading') {
+    if (empty && contentEmpty) {
+      if (dispatch) {
+        const start = blockPos + 1
+        dispatch(state.tr.delete(start, start + text.length).scrollIntoView())
+      }
+      return true
+    }
+    // 行首回车：上方插入空段落，当前行保持 `# Title`
+    if (atContentStart) {
+      if (dispatch) {
+        const tr = state.tr.insert(blockPos, schema.nodes.block.create())
+        tr.setSelection(TextSelection.create(tr.doc, blockPos + 1))
+        dispatch(tr.scrollIntoView())
+      }
+      return true
+    }
+    // 行中/行末：split，下一行不带标题前缀
+    if (dispatch) {
+      let tr = state.tr.deleteSelection()
+      tr = tr.split(tr.selection.from)
+      dispatch(tr.scrollIntoView())
+    }
+    return true
+  }
+
+  const prefix = continuationPrefix(line, text)
+  if (prefix === null) return false
 
   if (empty && contentEmpty) {
     // 前缀空行再回车 → 清空前缀，退出块格式
     if (dispatch) {
       const start = blockPos + 1
       dispatch(state.tr.delete(start, start + text.length).scrollIntoView())
-    }
-    return true
-  }
-
-  // 标题行首回车：上方插入空段落，当前行保持 `# Title`
-  if (line.t === 'heading' && atContentStart) {
-    if (dispatch) {
-      const tr = state.tr.insert(blockPos, schema.nodes.block.create())
-      tr.setSelection(TextSelection.create(tr.doc, blockPos + 1))
-      dispatch(tr.scrollIntoView())
     }
     return true
   }
@@ -161,12 +179,13 @@ function contentStartPos(state: EditorState, blockPos: number): number | null {
 /**
  * Mod-Backspace（macOS「删到行首」）：只清内容，保留 checkbox / 列表 / 引用 / 标题前缀。
  * 已在内容起点时吞掉按键，避免把前缀一并删掉。
+ * 普通段落也自己处理 —— contenteditable 里浏览器的原生「删到行首」并不可靠。
  */
 export const deleteToContentStart: Command = (state, dispatch) => {
   const { $from, empty, from, to } = state.selection
   if ($from.depth !== 1 || !$from.sameParent(state.selection.$to)) return false
-  const contentStart = contentStartPos(state, $from.before())
-  if (contentStart === null) return false
+  // 无隐藏前缀的行（普通段落）：整块都是内容，行首即块首。
+  const contentStart = contentStartPos(state, $from.before()) ?? $from.start()
 
   if (!empty) {
     const a = Math.max(Math.min(from, to), contentStart)
@@ -182,12 +201,11 @@ export const deleteToContentStart: Command = (state, dispatch) => {
 }
 
 /**
- * Mod-Delete：删到行尾，同样不碰隐藏前缀。
+ * Mod-Delete：删到行尾，同样不碰隐藏前缀（前缀在光标左侧，天然不受影响）。
  */
 export const deleteToContentEnd: Command = (state, dispatch) => {
   const { $from, empty, from, to } = state.selection
   if ($from.depth !== 1 || !$from.sameParent(state.selection.$to)) return false
-  if (contentStartPos(state, $from.before()) === null) return false
   const end = $from.end()
   if (!empty) {
     if (dispatch) dispatch(state.tr.delete(Math.min(from, to), Math.max(from, to)).scrollIntoView())
@@ -219,6 +237,21 @@ export const backspaceBlockFormat: Command = (state, dispatch) => {
   // 表格行：管道不是可退格去掉的"前缀"，交给默认删除
   if (hit.el.kind === 'tableHeader' || hit.el.kind === 'tableRow') return false
   if ($from.pos !== m.to) return false
+
+  // 标题：只有空标题才退格去格式。有内容时绝不能拆掉隐藏的 `# `——
+  // Enter 后 ArrowUp 常落在内容起点，再按一次 Backspace 就会把标题变成普通文本，
+  // 随后输入 `#中文`（没空格）还会被识别成标签，看起来像"再也变不回标题"。
+  if (hit.el.kind === 'heading') {
+    const prefixLen = m.to - (hit.block.pos + 1)
+    if (hit.block.text.length > prefixLen) {
+      if (hit.block.pos === 0) return true
+      if (dispatch) {
+        dispatch(state.tr.setSelection(TextSelection.create(state.doc, hit.block.pos - 1)))
+      }
+      return true
+    }
+  }
+
   if (dispatch) dispatch(state.tr.delete(m.from, m.to))
   return true
 }
@@ -240,6 +273,30 @@ export const arrowLeftSkipPrefix: Command = (state, dispatch) => {
   return true
 }
 
+/**
+ * ArrowUp 落在块首时：若上一行带隐藏前缀（标题/列表/引用…），把光标放到上一行
+ * 行尾，而不是内容起点。
+ *
+ * 典型陷阱：标题行末 Enter → 下一空行 → ArrowUp。浏览器按 x=0 映射，光标会停在
+ * 隐藏 `# ` 之后；再按 Backspace 就会误触去格式。
+ */
+export const arrowUpToPrevContentEnd: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection
+  if (!empty || $from.depth !== 1) return false
+  if ($from.parentOffset !== 0) return false
+  const blockPos = $from.before()
+  if (blockPos === 0) return false
+  const prev = state.doc.resolve(blockPos).nodeBefore
+  if (!prev?.isTextblock) return false
+  const prevPos = blockPos - prev.nodeSize
+  const line = lineInfoAt(state, prevPos)
+  if (!line || !('prefixLen' in line) || !line.prefixLen) return false
+  if (dispatch) {
+    dispatch(state.tr.setSelection(TextSelection.create(state.doc, blockPos - 1)))
+  }
+  return true
+}
+
 const INDENT = '  '
 
 export const indentListItem: Command = (state, dispatch) => {
@@ -247,7 +304,16 @@ export const indentListItem: Command = (state, dispatch) => {
   if ($from.depth !== 1) return false
   const line = lineInfoAt(state, $from.before())
   if (!line || !['bullet', 'ordered', 'todo'].includes(line.t)) return false
-  if (dispatch) dispatch(state.tr.insertText(INDENT, $from.start()))
+  if (!dispatch) return true
+
+  const start = $from.start()
+  let tr = state.tr.insertText(INDENT, start)
+  // Nested ordered run should start at 1; normalizePlugin then fixes siblings.
+  if (line.t === 'ordered' && line.num !== 1) {
+    const numFrom = start + INDENT.length + line.indent
+    tr = tr.insertText('1', numFrom, numFrom + line.numLen)
+  }
+  dispatch(tr)
   return true
 }
 
@@ -263,12 +329,43 @@ export const dedentListItem: Command = (state, dispatch) => {
   return true
 }
 
+/**
+ * 空标题是 `# ` / `## ` …（带尾部空格）。此时再敲 `#` 应升为更高一级标题，
+ * 而不是把 `#` 写进标题正文。
+ */
+export function headingInputPlugin(): Plugin {
+  return new Plugin({
+    props: {
+      handleTextInput(view, from, to, text) {
+        if (text !== '#' || from !== to) return false
+        const $from = view.state.doc.resolve(from)
+        if ($from.depth !== 1) return false
+        const line = $from.parent.textContent
+        const m = line.match(/^(#{1,6}) $/)
+        if (!m || m[1].length >= 6) return false
+        if (from !== $from.start() + m[0].length) return false
+        const hashInsert = $from.start() + m[1].length
+        let tr = view.state.tr.insertText('#', hashInsert)
+        tr = tr.setSelection(TextSelection.create(tr.doc, hashInsert + 2))
+        view.dispatch(tr)
+        return true
+      },
+    },
+  })
+}
+
 export function markdownKeymap(): Plugin {
   return keymap({
-    Enter: (state, dispatch, view) =>
-      continueTableRow(state, dispatch, view) || continueListItem(state, dispatch, view),
+    // 输入法用 Enter 上屏时，绝不能顺带拆段——否则标题会在确认拼音时被劈成普通文本。
+    // 只认 PM 的 view.composing：conceal 的 composing 只是渲染冻结标志，
+    // 一旦漏掉解冻就会把回车永久吞掉（表现为「标题后换不了行」）。
+    Enter: (state, dispatch, view) => {
+      if (view?.composing) return true
+      return continueTableRow(state, dispatch, view) || continueListItem(state, dispatch, view)
+    },
     Backspace: backspaceBlockFormat,
     ArrowLeft: arrowLeftSkipPrefix,
+    ArrowUp: arrowUpToPrevContentEnd,
     'Mod-Backspace': deleteToContentStart,
     'Mod-Delete': deleteToContentEnd,
     'Mod-b': toggleInline('**'),

@@ -60,6 +60,7 @@ export function diagramLangOf(info: string): string | null {
 }
 
 const FENCE_RE = /^( {0,3})(`{3,}|~{3,})(.*)$/
+/** ATX 标题：必须是 `# ` / `## ` …（井号后跟空格）。单独 `#` 或 `#tag` / `#标题` 都不是标题。 */
 const HEADING_RE = /^(#{1,6}) /
 const QUOTE_RE = /^ {0,3}> ?/
 const TODO_RE = /^(\s*)([-*+]) \[( |x|X)\] /

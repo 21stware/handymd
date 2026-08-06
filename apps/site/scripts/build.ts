@@ -67,7 +67,7 @@ for (const leftover of ['main.css']) {
 // ——— 2) Static assets ———
 await cp('styles.css', join(outdir, 'styles.css'))
 await cp('docs.css', join(outdir, 'docs.css'))
-await cp('favicon.svg', join(outdir, 'favicon.svg'))
+await cp('favicon.png', join(outdir, 'favicon.png'))
 await cp('logo.svg', join(outdir, 'logo.svg'))
 // Site is a documentation landing page — not an installable editor PWA.
 // (The pure editor lives at ./app/ and carries the real webmanifest + file_handlers.)
@@ -150,7 +150,7 @@ const sitePrecache = [
   './index.html',
   './styles.css',
   './docs.css',
-  './favicon.svg',
+  './favicon.png',
   './logo.svg',
   // lazily <link>ed when the playground mounts — offline it must already be there
   './handymd.css',
@@ -262,7 +262,7 @@ function renderDocPage(input: DocPageInput): string {
     <meta name="description" content="@21stware/handymd ${escapeAttr(title)} 文档" />
     <meta name="theme-color" content="#f4f1ea" />
     <meta name="color-scheme" content="light" />
-    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="favicon.png" type="image/png" />
     <link rel="canonical" href="https://21stware.github.io/handymd/docs/${escapeAttr(slug)}.html" />
     <style>
       :root {

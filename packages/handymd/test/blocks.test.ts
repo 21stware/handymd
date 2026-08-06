@@ -31,6 +31,17 @@ describe('classifyLines', () => {
     expect(lines[6]).toMatchObject({ num: 3, numLen: 1, prefixLen: 3 })
   })
 
+  test('heading requires a space after hashes; bare # / #tag / #标题 stay plain', () => {
+    const lines = classifyLines(['#标题', '##你好', '#tag', '# Tag', '#', '##', '## '])
+    expect(lines[0]).toMatchObject({ t: 'para' })
+    expect(lines[1]).toMatchObject({ t: 'para' })
+    expect(lines[2]).toMatchObject({ t: 'para' })
+    expect(lines[3]).toMatchObject({ t: 'heading', level: 1, prefixLen: 2 })
+    expect(lines[4]).toMatchObject({ t: 'para' })
+    expect(lines[5]).toMatchObject({ t: 'para' })
+    expect(lines[6]).toMatchObject({ t: 'heading', level: 2, prefixLen: 3 })
+  })
+
   test('fence state machine', () => {
     const lines = classifyLines(['```js', 'const a = 1', '# not a heading', '```', 'after'])
     expect(lines.map((l) => l.t)).toEqual(['fenceOpen', 'code', 'code', 'fenceClose', 'para'])

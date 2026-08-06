@@ -12,13 +12,17 @@
     "build:sdk": "bun --filter='@21stware/handymd' run build",
     "build:app": "bun --filter='handymd-app' run build",
     "build:site": "bun --filter='handymd-site' run build",
+    "build:desktop": "bun --filter='handymd-desktop' run build",
     "dev:sdk": "bun --filter='@21stware/handymd' run dev",
     "dev:app": "bun --filter='handymd-app' run dev",
     "dev:site": "bun --filter='handymd-site' run dev",
+    "dev:desktop": "bun --filter='handymd-desktop' run tauri:dev",
+    "desktop:build": "bun --filter='handymd-desktop' run tauri:build",
     "test": "bun --filter='@21stware/handymd' run test",
     "bench": "bun --filter='@21stware/handymd' run bench",
     "typecheck": "bun --filter='*' run typecheck",
-    "e2e": "bun --filter='@21stware/handymd' run e2e"
+    "e2e": "bun --filter='@21stware/handymd' run e2e",
+    "e2e:desktop": "bun --filter='handymd-desktop' run check"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

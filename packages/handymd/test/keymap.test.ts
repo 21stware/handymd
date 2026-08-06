@@ -4,8 +4,12 @@ import { concealKey, concealPlugin } from '../src/conceal/plugin'
 import { markdownToDoc, docToMarkdown } from '../src/markdown'
 import {
   continueListItem,
+  dedentListItem,
   deleteToContentEnd,
   deleteToContentStart,
+  headingInputPlugin,
+  indentListItem,
+  markdownKeymap,
   toggleInline,
 } from '../src/keymap'
 import { normalizePlugin } from '../src/normalize'
@@ -13,12 +17,20 @@ import { normalizePlugin } from '../src/normalize'
 function mkState(md: string, cursor?: number): EditorState {
   let state = EditorState.create({
     doc: markdownToDoc(md),
-    plugins: [concealPlugin(), normalizePlugin()],
+    plugins: [concealPlugin(), headingInputPlugin(), normalizePlugin()],
   })
   if (cursor !== undefined) {
     state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, cursor)))
   }
   return state
+}
+
+/** Doc position `col` characters into line `row`（都是 0 基）—— 每行一个块，块首尾各占 1。 */
+function at(md: string, row: number, col: number): number {
+  const lines = md.split('\n')
+  let pos = 1
+  for (let i = 0; i < row; i++) pos += lines[i].length + 2
+  return pos + col
 }
 
 function run(state: EditorState, command: Command): EditorState {
@@ -67,12 +79,44 @@ describe('markdown keymap', () => {
     expect(next.selection.from).toBe(1) // 新空行内
   })
 
-  test('Enter mid-heading splits into two headings of the same level', () => {
+  test('Enter mid-heading splits; next line is plain (no heading prefix)', () => {
     const md = '## HelloWorld'
-    // 内容 "HelloWorld"，在 Hello|World 处回车
+    // 内容 "HelloWorld"，在 Hello|World 处回车 → `## Hello\nWorld`（不续 `## `）
     const state = mkState(md, 1 + '## Hello'.length)
     const next = run(state, continueListItem)
-    expect(docToMarkdown(next.doc)).toBe('## Hello\n## World')
+    expect(docToMarkdown(next.doc)).toBe('## Hello\nWorld')
+  })
+
+  test('Enter at end of heading opens a plain paragraph', () => {
+    const md = '# Title'
+    const state = mkState(md, 1 + md.length)
+    const next = run(state, continueListItem)
+    expect(docToMarkdown(next.doc)).toBe('# Title\n')
+  })
+
+  test('Enter still splits when the conceal freeze flag went stale', () => {
+    // 漏掉一次 IME 解冻，渲染冻结标志会留在 true。回车绝不能因此被吞掉。
+    let state = mkState('# Title', 1 + '# Title'.length)
+    state = state.apply(state.tr.setMeta(concealKey, { composing: true }))
+    expect(concealKey.getState(state)!.composing).toBe(true)
+
+    const view = {
+      get state() {
+        return state
+      },
+      composing: false,
+      dispatch: (tr: Parameters<typeof state.apply>[0]) => {
+        state = state.apply(tr)
+      },
+    }
+    const plugin = markdownKeymap()
+    const handled = plugin.props.handleKeyDown!.call(
+      plugin,
+      view as never,
+      new KeyboardEvent('keydown', { key: 'Enter' }),
+    )
+    expect(handled).toBe(true)
+    expect(docToMarkdown(state.doc)).toBe('# Title\n')
   })
 
   test('Enter on empty heading exits heading format', () => {
@@ -112,6 +156,23 @@ describe('markdown keymap', () => {
     )
   })
 
+  test('Mod-Backspace clears a plain paragraph, which has no prefix to keep', () => {
+    const md = 'just a line'
+    const state = mkState(md, 1 + md.length)
+    expect(docToMarkdown(run(state, deleteToContentStart).doc)).toBe('')
+  })
+
+  test('Mod-Backspace only reaches back to the caret, not the whole document', () => {
+    const md = 'first\n\nsecond line'
+    const state = mkState(md, at(md, 2, 'second '.length))
+    expect(docToMarkdown(run(state, deleteToContentStart).doc)).toBe('first\n\nline')
+  })
+
+  test('Mod-Delete clears a plain paragraph from the caret to the end', () => {
+    const state = mkState('abcdef', 1 + 'abc'.length)
+    expect(docToMarkdown(run(state, deleteToContentEnd).doc)).toBe('abc')
+  })
+
   test('Mod-Delete clears from caret to end without touching the prefix', () => {
     const md = '- [ ] abcdef'
     // caret after "abc"
@@ -141,6 +202,37 @@ describe('markdown keymap', () => {
   })
 })
 
+describe('list indent / dedent', () => {
+  test('Tab on ordered item starts a nested run at 1 and renumbers parent siblings', () => {
+    const md = '1. a\n2. b\n3. c'
+    // cursor in "2. b"
+    const state = mkState(md, 1 + '1. a\n'.length + 3)
+    const next = run(state, indentListItem)
+    expect(docToMarkdown(next.doc)).toBe('1. a\n  1. b\n2. c')
+  })
+
+  test('Tab into an existing nested ordered run continues that run', () => {
+    const md = '1. a\n  1. b\n2. c'
+    const state = mkState(md, 1 + '1. a\n  1. b\n'.length + 3)
+    const next = run(state, indentListItem)
+    expect(docToMarkdown(next.doc)).toBe('1. a\n  1. b\n  2. c')
+  })
+
+  test('Shift-Tab dedents ordered item back into the parent run', () => {
+    const md = '1. a\n  1. b\n  2. c'
+    const state = mkState(md, 1 + '1. a\n'.length + 5)
+    const next = run(state, dedentListItem)
+    expect(docToMarkdown(next.doc)).toBe('1. a\n2. b\n  1. c')
+  })
+
+  test('Tab indents a bullet by two spaces', () => {
+    const md = '- a\n- b'
+    const state = mkState(md, 1 + '- a\n'.length + 2)
+    const next = run(state, indentListItem)
+    expect(docToMarkdown(next.doc)).toBe('- a\n  - b')
+  })
+})
+
 describe('normalizePlugin (appendTransaction)', () => {
   test('renumbers ordered runs after any doc change', () => {
     let state = mkState('1. a\n7. b\n9. c', 1)
@@ -158,5 +250,28 @@ describe('normalizePlugin (appendTransaction)', () => {
     let state = mkState('1. a\n\n5. b', 1)
     state = state.apply(state.tr.insertText('x', 2))
     expect(docToMarkdown(state.doc)).toBe('1x. a\n\n5. b')
+  })
+
+  test('bare `#` stays plain text until a space turns it into a heading', () => {
+    let state = mkState('', 1)
+    state = state.apply(state.tr.insertText('#', 1))
+    expect(docToMarkdown(state.doc)).toBe('#')
+    state = state.apply(state.tr.insertText(' ', 2))
+    expect(docToMarkdown(state.doc)).toBe('# ')
+  })
+
+  test('typing `#` on an empty heading promotes the level', () => {
+    let state = mkState('# ', 3)
+    const plugin = headingInputPlugin()
+    const view = {
+      state,
+      dispatch(tr: Parameters<typeof state.apply>[0]) {
+        state = state.apply(tr)
+      },
+    }
+    const handle = plugin.props.handleTextInput!
+    expect(handle.call(plugin, view as never, 3, 3, '#', () => state.tr)).toBe(true)
+    expect(docToMarkdown(state.doc)).toBe('## ')
+    expect(state.selection.from).toBe(4)
   })
 })

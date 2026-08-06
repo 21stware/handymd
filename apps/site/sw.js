@@ -6,7 +6,7 @@
  * hashes only exist after bundling, and a shell-only precache leaves the site
  * depending on the browser HTTP cache for its own JS. Literals are dev fallbacks. */
 const BUILD_ID = 'dev'
-const PRECACHE = ['./', './index.html', './styles.css', './docs.css', './favicon.svg']
+const PRECACHE = ['./', './index.html', './styles.css', './docs.css', './favicon.png']
 
 const CACHE = `handymd-site-shell-${BUILD_ID}`
 

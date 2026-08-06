@@ -1,0 +1,38 @@
+[package]
+name = "handymd-desktop"
+version = "0.1.0"
+description = "Handy — minimal Markdown desktop editor with iCloud-synced .mdb vault"
+authors = ["21stware"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.77"
+default-run = "Handy"
+
+[[bin]]
+name = "Handy"
+path = "src/main.rs"
+
+[lib]
+name = "handymd_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+dirs = "5"
+thiserror = "1"
+krilla = "0.6.0"
+# Same shaper krilla uses internally — measuring with it keeps wrap points
+# identical to what actually gets drawn.
+rustybuzz = "0.20"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

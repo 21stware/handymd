@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="8" fill="#2a2826"/>
-  <rect x="0.5" y="0.5" width="31" height="31" rx="7.5" stroke="#fff" stroke-opacity=".06"/>
-  <text x="7.5" y="22.2" font-family="Georgia, 'Iowan Old Style', serif" font-size="15" font-weight="600" fill="#f4f1ea">h</text>
-  <rect x="15.25" y="9.5" width="1" height="13" rx=".5" fill="#c8c4bc"/>
-  <rect x="19" y="10.5" width="7.5" height="2.1" rx="1.05" fill="#6f6a63"/>
-  <rect x="19" y="14.95" width="7.5" height="2.1" rx="1.05" fill="#6f6a63"/>
-  <rect x="19" y="19.4" width="7.5" height="2.1" rx="1.05" fill="#6f6a63"/>
-</svg>

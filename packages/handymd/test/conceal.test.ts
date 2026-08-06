@@ -99,6 +99,29 @@ describe('conceal/reveal state machine (L3)', () => {
     expect(strong.every((d) => (d.spec as Spec).concealed)).toBe(true)
   })
 
+  test('Enter after end-of-line ~~strike~~ conceals markers on the previous line', () => {
+    // 行末 inline 的 hitTo=to+1 落在块闭合处；split 后若直接 map hitTo，
+    // 会落到下一行，光标已离开仍 Revealed。
+    const md = '~~kkajsd~~'
+    let state = EditorState.create({
+      doc: markdownToDoc(md),
+      plugins: [concealPlugin()],
+    })
+    const end = 1 + md.length
+    state = setCursor(state, end)
+    let markers = findDecos(state, (s) => s.kind === 'strike' && s.role === 'marker')
+    expect(markers.every((d) => !(d.spec as Spec).concealed)).toBe(true)
+
+    state = state.apply(state.tr.split(state.selection.from))
+    const st = concealKey.getState(state)!
+    const strike = st.blocks[0]!.elements.find((e) => e.kind === 'strike')!
+    // hit 不得越过第一块（size=12 → 闭合于 12）
+    expect(strike.hitTo).toBeLessThanOrEqual(st.blocks[0]!.pos + st.blocks[0]!.size)
+    markers = findDecos(state, (s) => s.kind === 'strike' && s.role === 'marker')
+    expect(markers.length).toBe(2)
+    expect(markers.every((d) => (d.spec as Spec).concealed)).toBe(true)
+  })
+
   test('select-all reveals inline markers; heading source stays concealed but badge shows', () => {
     let state = mkState(MD)
     state = state.apply(state.tr.setSelection(new AllSelection(state.doc)))

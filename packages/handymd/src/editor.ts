@@ -9,7 +9,7 @@ import { docToMarkdown, markdownToDoc } from './markdown'
 import { concealKey, concealPlugin, type ConcealMeta } from './conceal/plugin'
 import { imePlugin } from './ime'
 import { interactionsPlugin } from './interactions'
-import { markdownKeymap } from './keymap'
+import { headingInputPlugin, markdownKeymap } from './keymap'
 import { normalizePlugin } from './normalize'
 import { caretGuardPlugin } from './caret'
 import { createShikiHighlighter, highlightPlugin, type CodeHighlighter } from './highlight'
@@ -158,6 +158,7 @@ export class HandyEditor {
           : undefined,
       }),
       imePlugin(),
+      headingInputPlugin(),
       interactionsPlugin({ onOpenLink: this.opts.onOpenLink }),
       caretGuardPlugin(),
       markdownKeymap(),

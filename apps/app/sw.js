@@ -8,7 +8,7 @@
  * fallbacks so this file stays runnable unbuilt.
  */
 const BUILD_ID = 'dev'
-const PRECACHE = ['./', './index.html', './styles.css', './manifest.webmanifest', './favicon.svg']
+const PRECACHE = ['./', './index.html', './styles.css', './manifest.webmanifest', './favicon.png']
 
 const CACHE = `handymd-app-shell-${BUILD_ID}`
 

@@ -4,9 +4,9 @@ import { concealKey } from './conceal/plugin'
 /**
  * L2 管线的 Append 阶段：appendTransaction 规范化。
  *
- * 当前实现：修复有序列表编号 —— 同一缩进层级上连续的有序项，序号必须
- * 从首项开始逐一递增（保留首项的起始值）。首项本身永远不动，所以用户
- * 有意改首项序号时不会被"打回去"。
+ * 有序列表编号：按缩进层级维护独立 run。更深缩进的子项不会打断父级
+ * 序号；回到父级缩进时继续累加。嵌套 run（indent > 0）一律从 1 起，
+ * 顶层 run 仍保留首项用户写的起始值。
  *
  * composing 期间跳过（IME 冻结原则同样适用于规范化写入）。
  */
@@ -17,29 +17,41 @@ export function normalizePlugin(): Plugin {
       const st = concealKey.getState(newState)
       if (!st || st.composing) return null
 
-      // 自底向上收集需要改写的序号，避免位置映射
       const fixes: { from: number; to: number; text: string }[] = []
-      let expected: number | null = null
-      let runIndent = -1
+      // indent ASC stack: [{ indent, nextExpected }]
+      const stack: { indent: number; expected: number }[] = []
 
       for (const block of st.blocks) {
         const line = block.line
         if (line.t === 'ordered') {
-          if (expected !== null && line.indent === runIndent) {
-            if (line.num !== expected) {
+          while (stack.length && stack[stack.length - 1].indent > line.indent) {
+            stack.pop()
+          }
+          const top = stack[stack.length - 1]
+          if (top && top.indent === line.indent) {
+            if (line.num !== top.expected) {
               const numFrom = block.pos + 1 + line.indent
-              fixes.push({ from: numFrom, to: numFrom + line.numLen, text: String(expected) })
+              fixes.push({ from: numFrom, to: numFrom + line.numLen, text: String(top.expected) })
             }
-            expected += 1
+            top.expected += 1
           } else {
-            // run 的首项保留用户写的起始值，之后逐一递增
-            runIndent = line.indent
-            expected = line.num + 1
+            // New run at this indent. Nested lists always start at 1.
+            const start = line.indent > 0 ? 1 : line.num
+            if (line.num !== start) {
+              const numFrom = block.pos + 1 + line.indent
+              fixes.push({ from: numFrom, to: numFrom + line.numLen, text: String(start) })
+            }
+            stack.push({ indent: line.indent, expected: start + 1 })
+          }
+        } else if (line.t === 'bullet' || line.t === 'todo') {
+          // Sibling list markers at this indent close deeper ordered runs.
+          const indent = line.indent
+          while (stack.length && stack[stack.length - 1].indent >= indent) {
+            stack.pop()
           }
         } else {
-          // 任何非有序行（含空行）都打断 run，之后重新计数
-          expected = null
-          runIndent = -1
+          // blank / para / heading / … reset all ordered runs
+          stack.length = 0
         }
       }
 

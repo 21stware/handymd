@@ -47,10 +47,6 @@ function mapElement(el: ElementRange, mapping: Mapping): ElementRange | null {
   if (fromR.deleted || toR.deleted) return null
   if (fromR.pos > toR.pos) return null
 
-  const hitFromR = mapping.mapResult(el.hitFrom, 1)
-  const hitToR = mapping.mapResult(el.hitTo, -1)
-  if (hitFromR.deleted || hitToR.deleted) return null
-
   const markers: Span[] = []
   for (const m of el.markers) {
     const mm = mapSpan(m, mapping)
@@ -72,12 +68,31 @@ function mapElement(el: ElementRange, mapping: Mapping): ElementRange | null {
     attrs = { ...attrs, checkPos: cp.pos }
   }
 
+  // hit 区间：inline 从 from/to 重新推导扩一格，不能直接 map hitTo。
+  // 行末元素的 hitTo = to+1 落在块闭合处；Enter split 后 map 会把它推到
+  // 下一行内部，光标已离开仍被判定 Revealed（~~strike~~ 回车后标记不消失）。
+  let hitFrom: number
+  let hitTo: number
+  if (el.static) {
+    hitFrom = fromR.pos
+    hitTo = toR.pos
+  } else if (el.scope === 'inline') {
+    hitFrom = fromR.pos - 1
+    hitTo = toR.pos + 1
+  } else {
+    const hitFromR = mapping.mapResult(el.hitFrom, 1)
+    const hitToR = mapping.mapResult(el.hitTo, -1)
+    if (hitFromR.deleted || hitToR.deleted) return null
+    hitFrom = hitFromR.pos
+    hitTo = hitToR.pos
+  }
+
   return {
     ...el,
     from: fromR.pos,
     to: toR.pos,
-    hitFrom: hitFromR.pos,
-    hitTo: hitToR.pos,
+    hitFrom,
+    hitTo,
     markers,
     content,
     attrs,

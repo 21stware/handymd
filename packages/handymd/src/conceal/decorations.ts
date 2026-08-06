@@ -81,10 +81,51 @@ function contentDeco(
   out.push(Decoration.inline(c.from, c.to, { class: cls, ...attrs }, spec(el, 'content', !revealed)))
 }
 
-function nodeDeco(block: BlockMeta, el: ElementRange, revealed: boolean, cls: string, out: Decoration[]): void {
+function nodeDeco(
+  block: BlockMeta,
+  el: ElementRange,
+  revealed: boolean,
+  cls: string,
+  out: Decoration[],
+  attrs?: Record<string, string>,
+): void {
   out.push(
-    Decoration.node(block.pos, block.pos + block.size, { class: cls }, spec(el, 'node', !revealed)),
+    Decoration.node(
+      block.pos,
+      block.pos + block.size,
+      { class: cls, ...attrs },
+      spec(el, 'node', !revealed),
+    ),
   )
+}
+
+/**
+ * Nest indent: turn leading spaces into a fixed-width inline spacer.
+ * Avoids block `padding-left` (selection paints at old x, then jumps).
+ */
+function decorateListIndent(block: BlockMeta, el: ElementRange, out: Decoration[]): void {
+  const spaces = el.attrs?.indent ?? 0
+  if (spaces <= 0) return
+  const from = block.pos + 1
+  const to = from + spaces
+  if (to <= from) return
+  // Use rem — `em` would collapse to 0 under `.hm-list-indent { font-size: 0 }`.
+  const level = spaces / 2
+  out.push(
+    Decoration.inline(
+      from,
+      to,
+      { class: 'hm-list-indent', style: `width: ${level * 1.35}rem` },
+      spec(el, 'marker', true, { indentPad: true }),
+    ),
+  )
+}
+
+/** Widget keys must ignore leading indent so Tab/Shift-Tab does not remount. */
+function listWidgetKey(kind: string, block: BlockMeta, el: ElementRange, extra = ''): string {
+  const indent = el.attrs?.indent ?? 0
+  const rest = block.text.slice(indent)
+  return extra ? `${kind}:${extra}:${rest}` : `${kind}:${rest}`
 }
 
 function widget(
@@ -257,14 +298,14 @@ export function buildBlockDecos(
       case 'todo': {
         const checked = el.attrs?.checked ?? false
         nodeDeco(block, el, rev, checked ? 'hm-todo hm-todo-checked' : 'hm-todo', out)
+        decorateListIndent(block, el, out)
         concealMarkersWithCaretPad(el, out)
         if (!rev) {
           const at = el.markers[0].from
           widget(
             el,
             at,
-            // line text disambiguates multiple todos; pos omitted so map/rebuild stays stable
-            `chk:${checked}:${block.text}`,
+            listWidgetKey('chk', block, el, checked ? '1' : '0'),
             () => {
               const input = document.createElement('input')
               input.type = 'checkbox'
@@ -282,13 +323,14 @@ export function buildBlockDecos(
 
       case 'bullet':
         nodeDeco(block, el, rev, 'hm-bullet', out)
+        decorateListIndent(block, el, out)
         concealMarkersWithCaretPad(el, out)
         if (!rev) {
           const at = el.markers[0].from
           widget(
             el,
             at,
-            `dot:${block.text}`,
+            listWidgetKey('dot', block, el),
             () => {
               const dot = document.createElement('span')
               dot.className = 'hm-bullet-dot'
@@ -304,6 +346,7 @@ export function buildBlockDecos(
       case 'ordered': {
         // static：序号永远可见，只做弱化着色
         nodeDeco(block, el, false, 'hm-ordered', out)
+        decorateListIndent(block, el, out)
         const m = el.markers[0]
         if (m && m.from < m.to) {
           out.push(
