@@ -78,7 +78,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
+        run: bunx playwright install --with-deps chromium chromium-headless-shell
 
       # e2e drives the SDK demo host in packages/handymd/example; it is the only
       # page that wires the optional shiki/mermaid peers and the conflict flow.

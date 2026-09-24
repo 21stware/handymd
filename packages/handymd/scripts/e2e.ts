@@ -2,7 +2,7 @@
  * 端到端交互验证（真实 Chromium）。
  *
  * 用法：先启动示例（bun run dev:sdk），再 `bun run e2e`。
- * 依赖：`bunx playwright install chromium`
+ * 依赖：`bunx playwright install chromium chromium-headless-shell`
  *
  * 回归约定：交互 / L3 decoration / keymap 的 bug 修复后，优先补
  * `test/*.test.ts`（尤其 decoconsistency / keymap / conceal）；
