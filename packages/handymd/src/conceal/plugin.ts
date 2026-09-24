@@ -3,11 +3,13 @@ import { Plugin, PluginKey } from 'prosemirror-state'
 import type { Node as PMNode } from 'prosemirror-model'
 import { Decoration, DecorationSet } from 'prosemirror-view'
 import type { DiagramRenderCallback } from '../diagram'
+import type { ImageResolver } from '../image'
 import { parseDoc, parseDocIncremental, type BlockMeta } from '../parse/docparse'
 import { lineInfoEqual } from '../parse/blocks'
 import { isRevealed, revealSignature, type SelLike } from './hittest'
 import { buildBlockDecos, type DecorationContext } from './decorations'
 import { spansIntersect } from '../elements'
+import { redirectSelectionIntoTable } from './tableview'
 
 /**
  * L3 conceal/reveal 状态机的宿主插件，同时承担 L2 管线的 Reconciling 阶段：
@@ -31,6 +33,8 @@ import { spansIntersect } from '../elements'
 export interface ConcealMeta {
   composing?: boolean
   readOnly?: boolean
+  /** 源码模式：关闭全部 conceal / 渲染 decoration，整篇直面 Markdown 源码 */
+  source?: boolean
   /** 强制全量重算（compositionend / 外部主题切换等场景） */
   refresh?: boolean
 }
@@ -44,6 +48,7 @@ export interface ConcealState {
   /** composing 期间发生过 docChanged，解冻后需要全量重算 */
   stale: boolean
   readOnly: boolean
+  source: boolean
 }
 
 export const concealKey = new PluginKey<ConcealState>('handymd-conceal')
@@ -54,10 +59,14 @@ function computeAll(
   readOnly: boolean,
   composing: boolean,
   ctx: DecorationContext,
+  source: boolean,
 ): ConcealState {
   const blocks = parseDoc(doc)
   const sigs: string[] = []
   const all: Decoration[] = []
+  if (source) {
+    return { set: DecorationSet.empty, blocks, sigs: blocks.map(() => ''), composing, stale: false, readOnly, source }
+  }
   for (const block of blocks) {
     const revealed = block.elements.map((el) => isRevealed(el, sel, readOnly))
     sigs.push(revealSignature(revealed))
@@ -71,6 +80,7 @@ function computeAll(
     composing,
     stale: false,
     readOnly,
+    source,
   }
 }
 
@@ -80,13 +90,14 @@ function contentReusable(a: BlockMeta, b: BlockMeta): boolean {
   // 行类型携带的关键字段（heading level / fence info / ordered num…）
   if (!lineInfoEqual(a.line, b.line)) return false
 
-  const edgeA = a.elements.find(
+  const tableA = a.elements.find(
     (e) => e.kind === 'tableHeader' || e.kind === 'tableRow' || e.kind === 'tableSep',
-  )?.attrs?.tableEdge
-  const edgeB = b.elements.find(
+  )?.attrs
+  const tableB = b.elements.find(
     (e) => e.kind === 'tableHeader' || e.kind === 'tableRow' || e.kind === 'tableSep',
-  )?.attrs?.tableEdge
-  if (edgeA !== edgeB) return false
+  )?.attrs
+  if (tableA?.tableEdge !== tableB?.tableEdge) return false
+  if (tableA?.tableSrc !== tableB?.tableSrc) return false
 
   const codeA = a.elements.find((e) => e.kind === 'diagramOpen')?.attrs?.code
   const codeB = b.elements.find((e) => e.kind === 'diagramOpen')?.attrs?.code
@@ -95,7 +106,8 @@ function contentReusable(a: BlockMeta, b: BlockMeta): boolean {
   return true
 }
 
-function findBlockAt(blocks: BlockMeta[], pos: number): number {
+/** 起始位置恰为 pos 的块下标（blocks 按位置有序），没有则 -1 */
+export function findBlockAt(blocks: readonly BlockMeta[], pos: number): number {
   // blocks sorted by pos; binary search
   let lo = 0
   let hi = blocks.length - 1
@@ -157,6 +169,9 @@ function computeAfterDocChange(
   ctx: DecorationContext,
 ): ConcealState {
   const newBlocks = parseDocIncremental(nextDoc, prev.blocks, tr.mapping)
+  if (prev.source) {
+    return { ...prev, blocks: newBlocks, sigs: newBlocks.map(() => ''), composing, readOnly, stale: false }
+  }
   const newToOld: (number | null)[] = new Array(newBlocks.length).fill(null)
 
   for (let j = 0; j < prev.blocks.length; j++) {
@@ -166,7 +181,7 @@ function computeAfterDocChange(
     if (i < 0) continue
     if (newToOld[i] !== null) {
       // 映射冲突 → 全量 parse + decorate（最稳）
-      return computeAll(nextDoc, sel, readOnly, composing, ctx)
+      return computeAll(nextDoc, sel, readOnly, composing, ctx, false)
     }
     newToOld[i] = j
   }
@@ -203,6 +218,7 @@ function computeAfterDocChange(
     composing,
     stale: false,
     readOnly,
+    source: false,
   }
 }
 
@@ -249,6 +265,7 @@ function computeAfterSelectionWithDoc(
   readOnly: boolean,
   ctx: DecorationContext,
 ): ConcealState {
+  if (prev.source) return prev
   const dirty: DirtyBlock[] = []
   let sigs: string[] | null = null
 
@@ -280,27 +297,45 @@ function computeAfterSelectionWithDoc(
 
 export interface ConcealOptions {
   readOnly?: boolean
+  /** 以源码模式启动（见 ConcealMeta.source） */
+  source?: boolean
   /**
    * diagram block（如 ```mermaid）在 Concealed 态的渲染回调
    * （见 diagram.ts 的 createDiagramRenderCallback）。缺省时 diagram
    * block 按普通 code block 呈现。
    */
   renderDiagram?: DiagramRenderCallback
+  /** 表格单元格里链接被单击时的回调，默认 window.open */
+  onOpenLink?: (href: string) => void
+  /** 图片地址解析（见 HandyEditorOptions.resolveImage） */
+  resolveImage?: ImageResolver
 }
 
 export function concealPlugin(options: ConcealOptions = {}): Plugin<ConcealState> {
-  const ctx: DecorationContext = { renderDiagram: options.renderDiagram }
+  const ctx: DecorationContext = {
+    renderDiagram: options.renderDiagram,
+    onOpenLink: options.onOpenLink,
+    resolveImage: options.resolveImage,
+  }
 
   return new Plugin<ConcealState>({
     key: concealKey,
 
     state: {
       init: (_config, state: EditorState) =>
-        computeAll(state.doc, state.selection, options.readOnly ?? false, false, ctx),
+        computeAll(
+          state.doc,
+          state.selection,
+          options.readOnly ?? false,
+          false,
+          ctx,
+          options.source ?? false,
+        ),
 
       apply: (tr: Transaction, prev: ConcealState, old: EditorState, next: EditorState) => {
-        let { composing, readOnly } = prev
+        let { composing, readOnly, source } = prev
         let refresh = false
+        let modeChanged = false
 
         const meta = tr.getMeta(concealKey) as ConcealMeta | undefined
         if (meta) {
@@ -311,16 +346,25 @@ export function concealPlugin(options: ConcealOptions = {}): Plugin<ConcealState
           if (meta.readOnly !== undefined && meta.readOnly !== readOnly) {
             readOnly = meta.readOnly
             refresh = true
+            modeChanged = true
+          }
+          if (meta.source !== undefined && meta.source !== source) {
+            source = meta.source
+            refresh = true
+            modeChanged = true
           }
           if (meta.refresh) refresh = true
         }
 
         // —— IME 冻结：只 map，不 hitTest，不重建 ——
-        if (composing) {
+        // 只读 / 源码切换不能被冻结：否则一个没解冻的 composing 标记会让
+        // 只读态继续沿用可编辑态的 reveal 结果
+        if (composing && !modeChanged) {
           return {
             ...prev,
             composing,
             readOnly,
+            source,
             stale: prev.stale || tr.docChanged,
             set: tr.docChanged ? prev.set.map(tr.mapping, tr.doc) : prev.set,
           }
@@ -328,7 +372,7 @@ export function concealPlugin(options: ConcealOptions = {}): Plugin<ConcealState
 
         // —— 强制全量（解冻 / readOnly / refresh） ——
         if (refresh || prev.stale) {
-          return computeAll(next.doc, next.selection, readOnly, composing, ctx)
+          return computeAll(next.doc, next.selection, readOnly, composing, ctx, source)
         }
 
         // —— 文档变化：parse 全量 + decoration 增量 map/rebuild ——
@@ -357,6 +401,17 @@ export function concealPlugin(options: ConcealOptions = {}): Plugin<ConcealState
         return concealKey.getState(state)?.set
       },
     },
+
+    // 选区经由键盘 / 命令落进表格源码行时，换成对应单元格的编辑框
+    view: () => ({
+      update(view, prev) {
+        const st = concealKey.getState(view.state)
+        if (!st || st.source || st.readOnly || st.composing) return
+        if (prev.selection.eq(view.state.selection) && prev.doc.eq(view.state.doc)) return
+        if (!view.hasFocus()) return
+        redirectSelectionIntoTable(view)
+      },
+    }),
   })
 }
 

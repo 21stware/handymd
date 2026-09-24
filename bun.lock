@@ -56,7 +56,7 @@
     },
     "packages/handymd": {
       "name": "@21stware/handymd",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "prosemirror-commands": "^1.7.1",
         "prosemirror-history": "^1.4.1",

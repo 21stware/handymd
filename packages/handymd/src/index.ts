@@ -26,18 +26,28 @@ export { interactionsPlugin } from './interactions'
 export type { InteractionOptions } from './interactions'
 export { normalizePlugin } from './normalize'
 export { caretGuardPlugin } from './caret'
+export { clipboardPlugin, htmlToMarkdown, markdownToSlice } from './clipboard'
 export {
   markdownKeymap,
   headingInputPlugin,
   continueListItem,
+  splitWithoutPrefix,
+  closeFenceOnEnter,
   toggleInline,
+  setHeading,
   indentListItem,
   dedentListItem,
+  insertTab,
+  removeTab,
   backspaceBlockFormat,
+  deleteForwardStripPrefix,
   arrowLeftSkipPrefix,
+  shiftArrowLeftSkipPrefix,
   arrowUpToPrevContentEnd,
   deleteToContentStart,
   deleteToContentEnd,
+  backspaceIntoTable,
+  deleteIntoTable,
 } from './keymap'
 
 // 表格（编程式创建；无输入触发）
@@ -50,12 +60,44 @@ export {
 } from './table'
 export type { InsertTableOptions } from './table'
 export {
+  focusTableCell,
+  parseTableModel,
+  renderCellPreview,
+  tableControllerAt,
+} from './conceal/tableview'
+export type { TableModel, TablePick } from './conceal/tableview'
+export {
+  splitTableSource,
+  joinTableSource,
+  tableColCount,
+  insertTableRow,
+  deleteTableRow,
+  moveTableRow,
+  insertTableColumn,
+  deleteTableColumn,
+  moveTableColumn,
+  setTableColumnAlign,
+} from './tableops'
+export type { TableSource } from './tableops'
+
+// 图片
+export { insertImage, insertImageFiles, imageMarkdown, imagePlugin, selectedImage } from './image'
+export type { InsertImageOptions, ImageUploader, ImageResolver, ImagePluginOptions } from './image'
+export { createLocalImageStore } from './imagestore'
+export type { LocalImageStore, LocalImageStoreOptions } from './imagestore'
+export {
   parseTableRow,
   isTableSeparator,
   looksLikeTableRow,
   formatTableRow,
   formatSeparator,
+  parseTableAlign,
 } from './parse/table'
+export type { TableAlign } from './parse/table'
+
+// 导出
+export { exportToPDF, buildPrintDocument, printableClone } from './export'
+export type { ExportPDFOptions } from './export'
 
 // 代码高亮
 export { highlightPlugin, highlightKey, createShikiHighlighter } from './highlight'
@@ -71,7 +113,8 @@ export type { AutosaveOptions, SaveStatus } from './autosave'
 
 // 文档模型与解析
 export { schema } from './schema'
-export { markdownToDoc, docToMarkdown } from './markdown'
+export { markdownToDoc, docToMarkdown, toCommonMark } from './markdown'
+export type { CommonMarkOptions } from './markdown'
 export { parseInline, parseInlineCached } from './parse/inline'
 export { classifyLines, diagramLangOf } from './parse/blocks'
 export type { LineInfo, LineType } from './parse/blocks'

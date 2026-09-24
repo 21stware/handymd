@@ -27,6 +27,7 @@ import '@21stware/handymd/style.css'
 | `save` | `(md: string) => unknown \| Promise<unknown>` | — | 提供后启用 L4 自动保存 |
 | `autosave` | `Omit<AutosaveOptions, 'save' \| 'onStatusChange'>` | 见下 | 防抖/退避等 |
 | `readOnly` | `boolean` | `false` | 初始只读 |
+| `sourceMode` | `boolean` | `false` | 以源码模式启动 |
 | `highlight` | `CodeHighlighter \| Promise<CodeHighlighter>` | — | 代码高亮 |
 | `diagram` | `DiagramRenderer \| Promise<DiagramRenderer>` | — | diagram block（如 ```` ```mermaid ````）渲染器；缺省时按普通代码块呈现 |
 | `onOpenLink` | `(href: string) => void` | `window.open` | Concealed 链接单击 |
@@ -36,6 +37,8 @@ import '@21stware/handymd/style.css'
 | `plugins` | `Plugin[]` | `[]` | 追加自定义 ProseMirror 插件 |
 | `history` | `boolean` | `true` | 是否启用撤销重做 |
 | `normalizeOrderedLists` | `boolean` | `true` | 有序列表自动重编号 |
+| `uploadImage` | `(file: File) => Promise<string>` | — | 粘贴 / 拖放 / `insertImageFiles` 的图片上传，返回写进 Markdown 的地址；缺省内联为 `data:` URL（不推荐，见 `createLocalImageStore`） |
+| `resolveImage` | `(src: string) => string \| Promise<string>` | — | 渲染前把 Markdown 里的图片地址解析成可加载的 URL（相对路径 / 本地存储 / 私有签名）；源码不变 |
 
 ### `HandyEditor` 实例
 
@@ -46,12 +49,17 @@ import '@21stware/handymd/style.css'
 | `phase` | `EditorPhase` | `loading \| ready \| error \| conflicted \| destroyed` |
 | `saveStatus` | `SaveStatus` | `clean \| dirty \| saving \| retrying \| offline` |
 | `readOnly` | `boolean` | 当前只读态 |
+| `sourceMode` | `boolean` | 当前是否源码模式 |
 | `loadError` | `unknown` | 最近一次加载错误 |
 | `remoteConflict` | `string \| null` | 冲突中的远端文本 |
 | `getMarkdown()` | `() => string` | 序列化（无损） |
 | `setMarkdown(md, opts?)` | `(string, { addToHistory?: boolean }) => void` | 编程式替换 |
 | `insertTable(opts?)` | `(InsertTableOptions) => boolean` | 编程式插入 GFM 表格 |
+| `insertImage(opts)` | `({ src, alt? }) => boolean` | 独立成行插入 `![alt](src)` |
+| `insertImageFiles(files)` | `(Iterable<File> \| FileList) => Promise<void>` | 插入图片文件（占位 → 上传 → 替换） |
+| `exportToPDF(opts?)` | `(ExportPDFOptions) => Promise<void>` | 以渲染态打开系统打印对话框（存储为 PDF），见「导出 PDF」 |
 | `setReadOnly(v)` | `(boolean) => void` | 切换只读 |
+| `setSourceMode(v)` | `(boolean) => void` | 源码模式 ⇄ 渲染模式 |
 | `focus()` | `() => void` | 聚焦 |
 | `retry()` | `() => void` | `error → loading` 重试加载 |
 | `notifyRemote(md)` | `(string) => void` | 通知远端版本变化 |
@@ -133,15 +141,25 @@ const st = concealKey.getState(view.state)
 import {
   imePlugin,                 // composition 冻结
   interactionsPlugin,        // 链接打开 / checkbox
-  caretGuardPlugin,          // 隐藏前缀光标保护
+  caretGuardPlugin,          // 隐藏前缀光标 / 选区保护
+  clipboardPlugin,           // 源码行级复制粘贴、HTML → Markdown、粘贴网址成链接
   normalizePlugin,           // 有序列表重编号
   markdownKeymap,            // Enter / Backspace / Mod-b…
-  continueListItem,
+  continueListItem,          // Enter
+  splitWithoutPrefix,        // Shift-Enter
+  closeFenceOnEnter,         // 未闭合围栏自动补闭合行
   toggleInline,
+  setHeading,                // setHeading(1…6)
   indentListItem,
   dedentListItem,
+  insertTab,
+  removeTab,
   backspaceBlockFormat,
+  deleteForwardStripPrefix,  // Delete
   arrowLeftSkipPrefix,
+  shiftArrowLeftSkipPrefix,
+  htmlToMarkdown,
+  markdownToSlice,
 } from '@21stware/handymd'
 
 interactionsPlugin({ onOpenLink: (href) => location.assign(href) })
@@ -170,6 +188,90 @@ insertTable({ rows: 3, cols: 3 })(view.state, view.dispatch)
 ```
 
 `InsertTableOptions`：`rows?`（含表头，默认 3）、`cols?`（默认 3）、`withHeaderRow?`（默认 true）、`headers?`。
+
+表格在表头行渲染为单个网格 widget，单元格内编辑（见使用指南「表格」）。相关导出：
+
+```ts
+import {
+  focusTableCell,   // (view, headerPos, { row, col }, caret?) → 让某格进入编辑
+  parseTableModel,  // 整表源码 → { rows, align, colCount }
+  renderCellPreview,
+  parseTableAlign,
+  backspaceIntoTable, deleteIntoTable, // 表格前后行的 Backspace / Delete 不并入管道源码
+  tableControllerAt, // (view, headerPos) → 控制器；.pick({ kind: 'row' | 'col', index }) 选中整行 / 整列
+} from '@21stware/handymd'
+```
+
+`goToNextTableCell` / `goToPrevTableCell` / `continueTableRow` 作用于 ProseMirror 选区，仅在源码模式下生效。
+
+结构操作是作用于管道源码的纯函数（widget 的行列菜单 / 拖动排序也用它们）。行下标含表头（0 = 表头）；
+行操作保留未改动行的原文，列操作重写每一行与分隔行。返回 `null` 表示整张表被删空：
+
+```ts
+import {
+  splitTableSource, joinTableSource,       // 整表源码 ⇄ { rows, sep }
+  insertTableRow, deleteTableRow, moveTableRow,
+  insertTableColumn, deleteTableColumn, moveTableColumn,
+  setTableColumnAlign,                     // 'left' | 'center' | 'right' | 'none'
+} from '@21stware/handymd'
+
+const t = splitTableSource('| A | B |\n| --- | --- |\n| 1 | 2 |')
+joinTableSource(moveTableColumn(t, 0, 1)).join('\n') // '| B | A |\n| --- | --- |\n| 2 | 1 |'
+```
+
+---
+
+## 图片
+
+```ts
+import {
+  insertImage, insertImageFiles, imageMarkdown, imagePlugin, selectedImage,
+  createLocalImageStore,
+} from '@21stware/handymd'
+
+insertImage({ src: 'a.png', alt: 'A' })(view.state, view.dispatch)
+await insertImageFiles(view, files, async (file) => uploadAndGetUrl(file))
+imagePlugin({ upload })   // 粘贴 / 拖放图片文件 + 图片的点击选中 / 键盘删除
+imageMarkdown({ src: 'a b.png', alt: 'x' }) // => "![x](a%20b.png)"
+selectedImage(state)      // 选区恰好选中一张图片时返回该元素，否则 null
+```
+
+图片是原子元素：渲染态下永远不回到 `![alt](src)` 源码。单击 = 选中（选区覆盖整段源码，画
+`.hm-image-selected`），`Backspace` / `Delete` 先选中再删除，方向键把它当作一个字符跨过，
+选中时 `Enter` 在图片后开新行。改 alt / 地址请用源码模式。
+
+`createLocalImageStore(opts?)` → `{ upload, resolve, get }`：没有后端时代替 `data:` 内联。
+文件存进 IndexedDB（不可用时退化为内存），Markdown 里只写短路径 `assets/<name>-<hash>.<ext>`
+（内容哈希去重），渲染时由 `resolve` 换回 `blob:` URL。
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `prefix` | `'assets/'` | 写进 Markdown 的路径前缀；`resolve` 只处理这个前缀下的地址 |
+| `dbName` | `'handymd-images'` | IndexedDB 库名；`null` = 只存内存 |
+
+---
+
+## 导出 PDF
+
+```ts
+import { exportToPDF, buildPrintDocument, printableClone } from '@21stware/handymd'
+
+await editor.exportToPDF({ title: '周报' })   // 或 exportToPDF(view, opts)
+```
+
+克隆编辑器的渲染 DOM 写进隐藏 iframe 后调用 `print()`，用户在打印对话框里选「存储为 PDF」。
+导出前临时切到只读渲染态（光标下的元素也收起源码；源码模式同样按渲染态导出），完成后还原；
+会等待仍在渲染的图表与图片。页面样式表与 `--hm-*` 主题变量一并带入。
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `title` | 第一个标题 | 打印文档标题（多数浏览器用作默认 PDF 文件名） |
+| `css` | — | 追加的打印 CSS（如 `@page { size: A4 landscape }`） |
+| `timeout` | `8000` | 等待图表 / 图片 / 样式的上限（ms） |
+| `print` | `win => win.print()` | 替换触发打印的方式（桌面壳的原生打印 / 测试拦截） |
+
+`buildPrintDocument(view, { title?, css? })` 返回完整 HTML 字符串，可自行交给服务端渲染 PDF；
+`printableClone(dom)` 只做 DOM 清理（去掉表格把手、编辑中的格子、选中态）。
 
 ---
 
@@ -229,7 +331,7 @@ concealPlugin({ renderDiagram: createDiagramRenderCallback(createMermaidRenderer
 ```ts
 import {
   schema,
-  markdownToDoc, docToMarkdown,
+  markdownToDoc, docToMarkdown, toCommonMark,
   parseInline, parseInlineCached,
   classifyLines, parseDoc,
   type LineInfo, type LineType, type BlockMeta,
@@ -239,6 +341,7 @@ import {
 
 markdownToDoc('# hi')           // Node
 docToMarkdown(doc)              // string，无损
+toCommonMark(md, { lineBreak: 'hard' })  // 导出为语义等价的 CommonMark（见 guide）
 parseInline('**a** ==b==')      // RelElement[]（相对坐标）
 classifyLines(['# a', '```', 'x', '```'])
 parseDoc(doc)                   // BlockMeta[]（绝对坐标 + 元素表）
@@ -256,7 +359,7 @@ parseDoc(doc)                   // BlockMeta[]（绝对坐标 + 元素表）
 | `content` | 语义内容范围 |
 | `static` | 永不参与 reveal（tag / codeLine / ordered 序号样式） |
 | `permanent` | 永久 Concealed（quote / bullet / todo / hr） |
-| `attrs` | `level` / `checked` / `checkPos` / `href` / `alt` / `indent` / `num` / `info` / `lang` / `code` / `colCount` / `col` / `tableEdge` |
+| `attrs` | `level` / `checked` / `checkPos` / `href` / `alt` / `indent` / `num` / `info` / `lang` / `code` / `colCount` / `col` / `tableEdge` / `tableSrc` |
 
 > 标题**不**设 `permanent`：源码 `#` 在 decoration 层永远隐藏，但聚焦时要展示层级图标，因此参与 reveal 判定。
 
@@ -283,4 +386,8 @@ import '@21stware/handymd/style.css' // package exports: "./style.css"
 | `.hm-checkbox` / `.hm-bullet-dot` / `.hm-hr` / `.hm-image` | widgets |
 | `.hm-code-line` / `.hm-fence-line` / `.hm-code-lang` | 代码块 |
 | `.hm-diagram` / `.hm-diagram-host` / `.hm-diagram-hidden` / `.hm-diagram-loading` / `.hm-diagram-empty` / `.hm-diagram-error` | diagram block |
-| `.hm-table` / `.hm-table-header` / `.hm-table-row` / `.hm-table-cell` / `.hm-table-sep` | 表格 |
+| `.hm-table-wrap` / `table.hm-table-grid` / `.hm-table-cell` / `.hm-table-cell-editing` | 表格网格 widget / 单元格 / 编辑中的单元格 |
+| `.hm-table-scroll` / `.hm-table-cell-picked` | 表格横向滚动容器 / 被选中整行整列的单元格 |
+| `.hm-table-handle-row` / `.hm-table-handle-col` / `.hm-table-add-row` / `.hm-table-add-col` / `.hm-table-menu` | 行列把手 / 添加条 / 行列菜单（只读态隐藏） |
+| `img.hm-image` / `.hm-image-selected` | 图片预览 / 选中态 |
+| `.hm-table-host` / `.hm-table-hidden` | 表头源码行（承载网格） / 折叠的分隔行与表体源码行 |

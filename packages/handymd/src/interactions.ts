@@ -34,7 +34,7 @@ function findLinkAt(st: ConcealState, pos: number): ElementRange | null {
 /** 点击渲染态图表 → 光标进入围栏开行末尾（触发整块 Revealed） */
 function enterDiagramAt(view: EditorView, dom: HTMLElement): boolean {
   const st = concealKey.getState(view.state)
-  if (!st || st.readOnly) return false
+  if (!st || st.readOnly || st.source || !view.editable) return false
   let pos: number
   try {
     pos = view.posAtDOM(dom, 0)
@@ -46,29 +46,6 @@ function enterDiagramAt(view: EditorView, dom: HTMLElement): boolean {
     if (block.line.t !== 'diagramOpen') return false
     const end = block.pos + 1 + block.text.length
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, end)))
-    view.focus()
-    return true
-  }
-  return false
-}
-
-/** 点击渲染态表格行 → 光标进入该行首格（触发源码 Revealed） */
-function enterTableRowAt(view: EditorView, dom: HTMLElement): boolean {
-  const st = concealKey.getState(view.state)
-  if (!st || st.readOnly) return false
-  let pos: number
-  try {
-    pos = view.posAtDOM(dom, 0)
-  } catch {
-    return false
-  }
-  for (const block of st.blocks) {
-    if (pos < block.pos || pos > block.pos + block.size) continue
-    if (block.line.t !== 'tableHeader' && block.line.t !== 'tableRow') return false
-    const cell = block.elements.find((e) => e.kind === 'tableCell')
-    let caret = cell ? cell.from : block.pos + 1
-    if (cell && block.text[cell.from - (block.pos + 1)] === ' ') caret = Math.min(cell.to, cell.from + 1)
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, caret)))
     view.focus()
     return true
   }
@@ -128,26 +105,10 @@ export function interactionsPlugin(options: InteractionOptions = {}): Plugin {
             return true
           }
 
-          // 表格渲染 widget：链接单击打开；其余点击进入该行源码
-          const tableVisual = target?.closest?.('.hm-table-visual') as HTMLElement | null
-          if (tableVisual) {
-            const linkEl = target?.closest?.('.hm-link') as HTMLElement | null
-            const href = linkEl?.getAttribute('data-href')
-            if (href && !event.metaKey && !event.ctrlKey) {
-              event.preventDefault()
-              if (event.detail >= 2) return true
-              openLink(href)
-              return true
-            }
-            event.preventDefault()
-            enterTableRowAt(view, tableVisual)
-            return true
-          }
-
           const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
           if (!coords) return false
           const st = concealKey.getState(view.state)
-          if (!st) return false
+          if (!st || st.source) return false
 
           const el = findLinkAt(st, coords.pos)
           const href = el?.attrs?.href

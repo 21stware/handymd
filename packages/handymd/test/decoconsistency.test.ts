@@ -13,7 +13,13 @@ import { EditorState, TextSelection } from 'prosemirror-state'
 import type { DecorationSet } from 'prosemirror-view'
 import { concealKey, concealPlugin } from '../src/conceal/plugin'
 import { createDiagramRenderCallback } from '../src/diagram'
-import { continueListItem } from '../src/keymap'
+import {
+  backspaceBlockFormat,
+  closeFenceOnEnter,
+  continueListItem,
+  deleteForwardStripPrefix,
+  setHeading,
+} from '../src/keymap'
 import { markdownToDoc } from '../src/markdown'
 import { schema } from '../src/schema'
 
@@ -251,3 +257,55 @@ describe('incremental decorations match a full rebuild', () => {
     }
   })
 })
+
+describe('incremental decorations after the new editing commands', () => {
+  function posIn(md: string, needle: string, offset = 0): number {
+    const lines = md.split('\n')
+    let pos = 0
+    for (const line of lines) {
+      const i = line.indexOf(needle)
+      if (i >= 0) return pos + 1 + i + offset
+      pos += line.length + 2
+    }
+    throw new Error(needle)
+  }
+  function apply(state: EditorState, cmd: typeof continueListItem): EditorState {
+    let out = state
+    expect(cmd(state, (tr) => (out = state.apply(tr)))).toBe(true)
+    return out
+  }
+
+  test('Enter at todo content start (insert above)', () => {
+    let state = caret(start(), posIn(DOC, 'done item'))
+    state = apply(state, continueListItem)
+    expectConsistent(state, 'todo insert above')
+  })
+
+  test('Enter mid-bold (close/reopen markers)', () => {
+    let state = caret(start(), posIn(DOC, 'bold', 2))
+    state = apply(state, continueListItem)
+    expectConsistent(state, 'inline split')
+  })
+
+  test('fence auto-close, heading shortcut, forward delete, backspace dedent', () => {
+    const md = 'intro\n```js\npara\n- a\n  - b\nend'
+    let state = caret(start(md), posIn(md, '```js', 5))
+    state = apply(state, closeFenceOnEnter)
+    expectConsistent(state, 'fence close')
+    state = caret(state, posIn(docText(state), 'intro', 2))
+    state = apply(state, setHeading(2))
+    expectConsistent(state, 'set heading')
+    state = caret(state, posIn(docText(state), 'para', 4))
+    state = apply(state, deleteForwardStripPrefix)
+    expectConsistent(state, 'forward delete')
+    state = caret(state, posIn(docText(state), '  - b', 4))
+    state = apply(state, backspaceBlockFormat)
+    expectConsistent(state, 'backspace dedent')
+  })
+})
+
+function docText(state: EditorState): string {
+  const lines: string[] = []
+  state.doc.forEach((b) => lines.push(b.textContent))
+  return lines.join('\n')
+}

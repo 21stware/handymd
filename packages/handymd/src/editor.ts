@@ -12,10 +12,20 @@ import { interactionsPlugin } from './interactions'
 import { headingInputPlugin, markdownKeymap } from './keymap'
 import { normalizePlugin } from './normalize'
 import { caretGuardPlugin } from './caret'
+import { clipboardPlugin } from './clipboard'
 import { createShikiHighlighter, highlightPlugin, type CodeHighlighter } from './highlight'
 import { createDiagramRenderCallback, type DiagramRenderer } from './diagram'
 import { Autosave, type AutosaveOptions, type SaveStatus } from './autosave'
 import { insertTable as insertTableCommand, type InsertTableOptions } from './table'
+import { exportToPDF, type ExportPDFOptions } from './export'
+import {
+  imagePlugin,
+  insertImage as insertImageCommand,
+  insertImageFiles,
+  type ImageResolver,
+  type ImageUploader,
+  type InsertImageOptions,
+} from './image'
 
 /**
  * L1 编辑器生命周期状态机：
@@ -43,6 +53,8 @@ export interface HandyEditorOptions {
   /** L4 参数（防抖/退避等） */
   autosave?: Omit<AutosaveOptions, 'save' | 'onStatusChange'>
   readOnly?: boolean
+  /** 以源码模式启动：关闭全部渲染，整篇直面 Markdown 源码（见 setSourceMode） */
+  sourceMode?: boolean
   /** Concealed 链接被点击时的回调，默认 window.open */
   onOpenLink?: (href: string) => void
   onChange?: (markdown: string) => void
@@ -65,6 +77,16 @@ export interface HandyEditorOptions {
    * 缺省时 diagram block 按普通代码块呈现。
    */
   diagram?: DiagramRenderer | Promise<DiagramRenderer>
+  /**
+   * 粘贴 / 拖放 / insertImageFiles 的图片上传函数，返回写进 Markdown 的地址。
+   * 缺省时图片以 data: URL 内联进源码（没有后端时推荐 createLocalImageStore）。
+   */
+  uploadImage?: ImageUploader
+  /**
+   * 渲染图片前把 Markdown 里的地址解析成可加载的 URL（可异步）：
+   * 相对路径、`assets/…` 本地存储、需要签名的私有地址等。缺省原样使用。
+   */
+  resolveImage?: ImageResolver
 }
 
 type EventMap = {
@@ -79,6 +101,7 @@ export class HandyEditor {
 
   private phaseValue: EditorPhase = 'loading'
   private readOnlyValue: boolean
+  private sourceModeValue: boolean
   private readOnlyBeforeConflict = false
   private remoteMarkdown: string | null = null
   private lastLoadError: unknown = null
@@ -88,6 +111,7 @@ export class HandyEditor {
   constructor(options: HandyEditorOptions) {
     this.opts = options
     this.readOnlyValue = options.readOnly ?? false
+    this.sourceModeValue = options.sourceMode ?? false
     void this.init()
   }
 
@@ -153,14 +177,19 @@ export class HandyEditor {
     const plugins: Plugin[] = [
       concealPlugin({
         readOnly: this.readOnlyValue,
+        source: this.sourceModeValue,
         renderDiagram: this.opts.diagram
           ? createDiagramRenderCallback(this.opts.diagram)
           : undefined,
+        onOpenLink: this.opts.onOpenLink,
+        resolveImage: this.opts.resolveImage,
       }),
       imePlugin(),
       headingInputPlugin(),
       interactionsPlugin({ onOpenLink: this.opts.onOpenLink }),
       caretGuardPlugin(),
+      imagePlugin({ upload: this.opts.uploadImage }),
+      clipboardPlugin(),
       markdownKeymap(),
     ]
     plugins.push(highlightPlugin(this.opts.highlight ?? createShikiHighlighter()))
@@ -170,14 +199,6 @@ export class HandyEditor {
         keymap({ 'Mod-z': undo, 'Mod-y': redo, 'Mod-Shift-z': redo }),
       )
     }
-    plugins.push(
-      keymap({
-        'Mod-s': () => {
-          void this.flush()
-          return true
-        },
-      }),
-    )
     plugins.push(keymap(baseKeymap))
     if (this.opts.normalizeOrderedLists !== false) plugins.push(normalizePlugin())
     // 只读锁：L2 的 filterTransaction 在只读态拒绝一切写事务
@@ -193,6 +214,9 @@ export class HandyEditor {
     const state = EditorState.create({ doc, plugins })
 
     this.opts.mount.classList.add('handymd')
+    this.opts.mount.classList.toggle('hm-source', this.sourceModeValue)
+    // 挂在 mount 上而非 keymap：表格单元格编辑框里的按键不经过 ProseMirror
+    this.opts.mount.addEventListener('keydown', this.onMountKeyDown)
     this.view = new EditorView(this.opts.mount, {
       state,
       editable: () => !this.readOnlyValue && this.phaseValue === 'ready',
@@ -230,6 +254,13 @@ export class HandyEditor {
     }
   }
 
+  private readonly onMountKeyDown = (e: KeyboardEvent): void => {
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 's') {
+      e.preventDefault()
+      void this.flush()
+    }
+  }
+
   // ---- content ----
 
   getMarkdown(): string {
@@ -258,8 +289,37 @@ export class HandyEditor {
     return insertTableCommand(options)(view.state, view.dispatch.bind(view))
   }
 
+  /** 以独立一行插入图片 `![alt](src)` */
+  insertImage(options: InsertImageOptions): boolean {
+    const view = this.view
+    if (!view || this.phaseValue !== 'ready' || this.readOnlyValue) return false
+    return insertImageCommand(options)(view.state, view.dispatch.bind(view))
+  }
+
+  /**
+   * 插入图片文件（宿主的文件选择器等）：立即以本地预览占位，
+   * 经 `uploadImage` 上传（缺省内联为 data: URL）后替换为最终地址。
+   */
+  async insertImageFiles(files: Iterable<File> | FileList): Promise<void> {
+    const view = this.view
+    if (!view || this.phaseValue !== 'ready' || this.readOnlyValue) return
+    await insertImageFiles(view, Array.from(files as Iterable<File>), this.opts.uploadImage)
+  }
+
   focus(): void {
     this.view?.focus()
+  }
+
+  /**
+   * 导出 PDF：以渲染态打开系统打印对话框（选「存储为 PDF」）。
+   * 光标所在元素、源码模式也按渲染态导出，不改变编辑器状态。
+   */
+  exportToPDF(options: ExportPDFOptions = {}): Promise<void> {
+    const view = this.view
+    if (!view || this.phaseValue === 'loading' || this.phaseValue === 'destroyed') {
+      return Promise.resolve()
+    }
+    return exportToPDF(view, options)
   }
 
   // ---- readOnly ----
@@ -271,6 +331,24 @@ export class HandyEditor {
     }
     this.readOnlyValue = readOnly
     const meta: ConcealMeta = { readOnly }
+    this.view.dispatch(this.view.state.tr.setMeta(concealKey, meta))
+  }
+
+  // ---- source mode ----
+
+  get sourceMode(): boolean {
+    return this.sourceModeValue
+  }
+
+  /**
+   * 源码模式 ⇄ 渲染模式。源码模式下所有标记符可见、块前缀可直接编辑，
+   * 列表续行等编辑行为保留；文档内容与撤销历史不受影响。
+   */
+  setSourceMode(source: boolean): void {
+    this.sourceModeValue = source
+    this.opts.mount.classList.toggle('hm-source', source)
+    if (!this.view) return
+    const meta: ConcealMeta = { source }
     this.view.dispatch(this.view.state.tr.setMeta(concealKey, meta))
   }
 
@@ -347,6 +425,7 @@ export class HandyEditor {
     }
     this.autosave?.destroy()
     this.autosave = null
+    this.opts.mount.removeEventListener('keydown', this.onMountKeyDown)
     this.view?.destroy()
     this.view = null
     this.setPhase('destroyed')

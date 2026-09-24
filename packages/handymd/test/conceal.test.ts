@@ -122,12 +122,12 @@ describe('conceal/reveal state machine (L3)', () => {
     expect(markers.every((d) => (d.spec as Spec).concealed)).toBe(true)
   })
 
-  test('select-all reveals inline markers; heading source stays concealed but badge shows', () => {
+  test('select-all keeps covered inline markers concealed; only the endpoint block reveals', () => {
     let state = mkState(MD)
     state = state.apply(state.tr.setSelection(new AllSelection(state.doc)))
     const inline = findDecos(state, (s) => s.kind === 'strong' && s.role === 'marker')
     expect(inline.length).toBe(2)
-    expect(inline.every((d) => !(d.spec as Spec).concealed)).toBe(true)
+    expect(inline.every((d) => (d.spec as Spec).concealed)).toBe(true)
     const heading = findDecos(state, (s) => s.kind === 'heading' && s.role === 'marker')
     expect(heading.every((d) => (d.spec as Spec).concealed)).toBe(true)
     expect(findDecos(state, (s) => s.kind === 'heading' && s.role === 'widget').length).toBe(1)

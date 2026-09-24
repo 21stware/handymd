@@ -1,6 +1,6 @@
 {
   "name": "@21stware/handymd",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Bear-style source-fidelity Markdown editor SDK (@21stware/handymd) — the document IS the markdown source; markers are selectively concealed by cursor position.",
   "type": "module",
   "main": "./dist/index.js",

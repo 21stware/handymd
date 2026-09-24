@@ -1,8 +1,9 @@
 import { Decoration } from 'prosemirror-view'
 import type { DiagramRenderCallback } from '../diagram'
+import type { ImageResolver } from '../image'
 import type { ElementRange, Span } from '../elements'
 import type { BlockMeta } from '../parse/docparse'
-import { buildTableRowVisual } from './tableview'
+import { buildTableWidget } from './tableview'
 
 /**
  * 由 (元素, 是否 Revealed) 生成 decoration —— L3 状态的"渲染输出"。
@@ -187,6 +188,39 @@ function fenceCloseDecos(block: BlockMeta, el: ElementRange, rev: boolean, out: 
  */
 export interface DecorationContext {
   renderDiagram?: DiagramRenderCallback
+  /** 表格单元格里链接被单击时的回调，默认 window.open */
+  onOpenLink?: (href: string) => void
+  /** 把 Markdown 里的图片地址解析成可加载的 URL（相对路径 / 自定义存储） */
+  resolveImage?: ImageResolver
+}
+
+function setImageSrc(img: HTMLImageElement, src: string, resolve?: ImageResolver): void {
+  if (!resolve) {
+    img.src = src
+    return
+  }
+  let out: string | Promise<string>
+  try {
+    out = resolve(src)
+  } catch {
+    img.src = src
+    return
+  }
+  if (typeof out === 'string') {
+    img.src = out
+    return
+  }
+  img.classList.add('hm-image-loading')
+  out.then(
+    (url) => {
+      img.classList.remove('hm-image-loading')
+      img.src = url
+    },
+    () => {
+      img.classList.remove('hm-image-loading')
+      img.src = src
+    },
+  )
 }
 
 export function buildBlockDecos(
@@ -226,31 +260,30 @@ export function buildBlockDecos(
         markerDecos(el, rev, out)
         break
 
-      case 'image':
-        if (rev) {
-          contentDeco(el, rev, 'hm-image-alt', out)
-          markerDecos(el, rev, out)
-        } else {
-          // Concealed：整段源码隐藏，替换为图片预览 widget
-          concealSpan(el, { from: el.from, to: el.to }, out)
-          const href = el.attrs?.href ?? ''
-          const alt = el.attrs?.alt ?? ''
-          widget(
-            el,
-            el.from,
-            `img:${href}\0${alt}`,
-            () => {
-              const img = document.createElement('img')
-              img.className = 'hm-image'
-              img.src = href
-              img.alt = alt
-              return img
-            },
-            out,
-            -1,
-          )
-        }
+      case 'image': {
+        // 原子元素：源码永远隐藏，只画预览；rev = 被选中（见 isRevealed）
+        concealSpan(el, { from: el.from, to: el.to }, out)
+        const href = el.attrs?.href ?? ''
+        const alt = el.attrs?.alt ?? ''
+        const resolveImage = ctx?.resolveImage
+        widget(
+          el,
+          el.from,
+          `img:${rev ? 1 : 0}:${href}\0${alt}`,
+          () => {
+            const img = document.createElement('img')
+            img.className = rev ? 'hm-image hm-image-selected' : 'hm-image'
+            img.alt = alt
+            img.draggable = false
+            img.dataset.src = href
+            setImageSrc(img, href, resolveImage)
+            return img
+          },
+          out,
+          -1,
+        )
         break
+      }
 
       case 'tag':
         contentDeco(el, false, 'hm-tag', out)
@@ -451,42 +484,33 @@ export function buildBlockDecos(
         }
         break
 
-      case 'tableHeader':
-      case 'tableRow': {
-        const edge = el.attrs?.tableEdge
-        const edgeCls =
-          edge === 'first' ? ' hm-table-first' : edge === 'last' ? ' hm-table-last' : edge === 'only' ? ' hm-table-only' : ''
-        const roleCls = el.kind === 'tableHeader' ? 'hm-table-header' : 'hm-table-row'
-        if (rev) {
-          // 源码态：显示管道表格文本，管道符弱化
-          nodeDeco(block, el, true, `hm-table hm-table-source ${roleCls}${edgeCls}`, out)
-          markerDecos(el, true, out)
-        } else {
-          // 渲染态：整行源码隐藏，用 widget 画真实列（可正确容纳链接等行内样式）
-          nodeDeco(block, el, false, `hm-table hm-table-rendered ${roleCls}${edgeCls}`, out)
-          const lineFrom = block.pos + 1
-          const lineTo = block.pos + 1 + block.text.length
-          concealSpan(el, { from: lineFrom, to: lineTo }, out)
-          widget(
-            el,
-            lineFrom,
-            `tr:${el.kind}\0${block.text}`,
-            () => buildTableRowVisual(block, el.kind as 'tableHeader' | 'tableRow'),
-            out,
-            -1,
-          )
-        }
+      // —— 表格：整张表在表头行渲染为一个网格 widget，其余源码行折叠为零高。
+      // 单元格编辑在 widget 内的编辑框里完成（见 tableview.ts），永不回到管道源码。
+      case 'tableHeader': {
+        nodeDeco(block, el, false, 'hm-table hm-table-host', out)
+        const lineFrom = block.pos + 1
+        concealSpan(el, { from: lineFrom, to: lineFrom + block.text.length }, out)
+        const src = el.attrs?.tableSrc ?? block.text
+        const onOpenLink = ctx?.onOpenLink
+        out.push(
+          Decoration.widget(lineFrom, (view, getPos) => buildTableWidget(view, getPos, src, { onOpenLink }), {
+            key: `tbl:${src}`,
+            side: -1,
+            ignoreSelection: true,
+            stopEvent: () => true,
+            ...spec(el, 'widget', true),
+          }),
+        )
         break
       }
 
+      case 'tableRow':
       case 'tableSep':
-        // 分隔行整行隐藏，视觉上由表头加粗底边承担
-        nodeDeco(block, el, rev, 'hm-table hm-table-sep', out)
-        markerDecos(el, false, out)
+        nodeDeco(block, el, false, 'hm-table hm-table-hidden', out)
+        concealSpan(el, { from: block.pos + 1, to: block.pos + 1 + block.text.length }, out)
         break
 
       case 'tableCell':
-        // 列布局由 widget 承担；源码态无需再给 cell 套 flex class（会与 link deco 冲突）
         break
     }
   })

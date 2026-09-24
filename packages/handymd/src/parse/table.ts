@@ -16,10 +16,14 @@ export interface ParsedTableRow {
   pipes: Span[]
 }
 
-/** 行内所有 `|` 位置 */
+/** 行内所有未转义的 `|` 位置（`\|` 是单元格内的字面竖线） */
 export function findPipes(line: string): Span[] {
   const pipes: Span[] = []
   for (let i = 0; i < line.length; i++) {
+    if (line[i] === '\\') {
+      i++
+      continue
+    }
     if (line[i] === '|') pipes.push({ from: i, to: i + 1 })
   }
   return pipes
@@ -33,14 +37,10 @@ export function parseTableRow(line: string): ParsedTableRow {
   const pipes = findPipes(line)
   let innerStart = 0
   let innerEnd = line.length
-  const trimmedStart = line.trimStart()
-  const leadingWs = line.length - trimmedStart.length
-  if (trimmedStart.startsWith('|')) {
-    innerStart = leadingWs + 1
-  }
-  const trimmedEnd = line.trimEnd()
-  const trailingWs = line.length - trimmedEnd.length
-  if (trimmedEnd.endsWith('|')) {
+  const leadingWs = line.length - line.trimStart().length
+  const trailingWs = line.length - line.trimEnd().length
+  if (pipes.length && pipes[0]!.from === leadingWs) innerStart = leadingWs + 1
+  if (pipes.length && pipes[pipes.length - 1]!.from === line.length - trailingWs - 1) {
     innerEnd = line.length - trailingWs - 1
   }
 
@@ -50,13 +50,40 @@ export function parseTableRow(line: string): ParsedTableRow {
   }
 
   let start = innerStart
-  for (let i = innerStart; i <= innerEnd; i++) {
-    if (i === innerEnd || line[i] === '|') {
-      cells.push({ from: start, to: i, text: line.slice(start, i) })
-      start = i + 1
-    }
+  for (const p of pipes) {
+    if (p.from < innerStart || p.from >= innerEnd) continue
+    cells.push({ from: start, to: p.from, text: line.slice(start, p.from) })
+    start = p.to
   }
+  cells.push({ from: start, to: innerEnd, text: line.slice(start, innerEnd) })
   return { cells, pipes }
+}
+
+export type TableAlign = 'left' | 'center' | 'right' | 'none'
+
+/** 分隔行每列的对齐方式 */
+export function parseTableAlign(sepLine: string): TableAlign[] {
+  return parseTableRow(sepLine).cells.map((c) => {
+    const t = c.text.trim()
+    const l = t.startsWith(':')
+    const r = t.endsWith(':')
+    return l && r ? 'center' : r ? 'right' : l ? 'left' : 'none'
+  })
+}
+
+/** 单元格源码 → 编辑框里展示的文本：去掉两侧 padding 空格 */
+export function cellDisplaySource(raw: string): string {
+  let text = raw
+  if (text.startsWith(' ')) text = text.slice(1)
+  if (text.endsWith(' ')) text = text.slice(0, -1)
+  return text
+}
+
+/** 编辑框文本 → 单元格源码：换行折成空格，裸 `|` 转义，两侧补 padding */
+export function cellSourceFromInput(input: string): string {
+  const flat = input.replace(/[\r\n]+/g, ' ').replace(/\u00a0/g, ' ')
+  const escaped = flat.replace(/(\\*)\|/g, (m, bs: string) => (bs.length % 2 ? m : `${bs}\\|`))
+  return escaped ? ` ${escaped} ` : emptyCellText()
 }
 
 const SEP_CELL_RE = /^\s*:?-{3,}:?\s*$/

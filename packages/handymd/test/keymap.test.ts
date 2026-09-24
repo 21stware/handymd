@@ -9,7 +9,12 @@ import {
   deleteToContentStart,
   headingInputPlugin,
   indentListItem,
+  insertTab,
   markdownKeymap,
+  removeTab,
+  setHeading,
+  splitWithoutPrefix,
+  closeFenceOnEnter,
   toggleInline,
 } from '../src/keymap'
 import { normalizePlugin } from '../src/normalize'
@@ -273,5 +278,118 @@ describe('normalizePlugin (appendTransaction)', () => {
     expect(handle.call(plugin, view as never, 3, 3, '#', () => state.tr)).toBe(true)
     expect(docToMarkdown(state.doc)).toBe('## ')
     expect(state.selection.from).toBe(4)
+  })
+})
+
+describe('Enter edge cases', () => {
+  test('Enter at content start of a checked todo inserts an empty item above and keeps the check', () => {
+    const md = '- [x] task'
+    const next = run(mkState(md, 7), continueListItem)
+    expect(docToMarkdown(next.doc)).toBe('- [ ] \n- [x] task')
+    expect(next.selection.from).toBe(at(docToMarkdown(next.doc), 1, 6))
+  })
+
+  test('Enter at content start of an ordered item renumbers the moved item', () => {
+    const next = run(mkState('1. a', 4), continueListItem)
+    expect(docToMarkdown(next.doc)).toBe('1. \n2. a')
+  })
+
+  test('Enter on an empty nested bullet dedents instead of clearing', () => {
+    const md = '- a\n  - '
+    const next = run(mkState(md, at(md, 1, 4)), continueListItem)
+    expect(docToMarkdown(next.doc)).toBe('- a\n- ')
+  })
+
+  test('Enter inside **bold** closes and reopens the marker on both halves', () => {
+    const md = 'x **bold** y'
+    const next = run(mkState(md, at(md, 0, 6)), continueListItem)
+    expect(docToMarkdown(next.doc)).toBe('x **bo**\n**ld** y')
+    expect(next.selection.from).toBe(at('x **bo**\n**ld** y', 1, 2))
+  })
+
+  test('Enter inside nested emphasis in a list item keeps both levels and the bullet', () => {
+    const md = '- *a **bc** d*'
+    const next = run(mkState(md, at(md, 0, 8)), continueListItem)
+    expect(docToMarkdown(next.doc)).toBe('- *a **b***\n- ***c** d*')
+  })
+
+  test('Enter right after an opening marker moves the whole element down', () => {
+    const md = 'x **bold**'
+    const next = run(mkState(md, at(md, 0, 4)), continueListItem)
+    expect(docToMarkdown(next.doc)).toBe('x \n**bold**')
+    expect(next.selection.from).toBe(at('x \n**bold**', 1, 2))
+  })
+
+  test('Enter in a plain paragraph without markers stays with the default command', () => {
+    expect(continueListItem(mkState('plain text', 4), () => {})).toBe(false)
+  })
+
+  test('Enter at the end of an unclosed fence opener inserts the closing fence', () => {
+    const md = 'intro\n```js\n# not code'
+    const next = run(mkState(md, at(md, 1, 5)), closeFenceOnEnter)
+    expect(docToMarkdown(next.doc)).toBe('intro\n```js\n\n```\n# not code')
+    expect(next.selection.from).toBe(at(docToMarkdown(next.doc), 2, 0))
+  })
+
+  test('Enter on a fence that would steal a later block closer also auto-closes', () => {
+    const md = '```\n```py\nx\n```'
+    const next = run(mkState(md, at(md, 0, 3)), closeFenceOnEnter)
+    expect(docToMarkdown(next.doc)).toBe('```\n\n```\n```py\nx\n```')
+  })
+
+  test('Enter on an already closed fence opener falls through', () => {
+    const md = '```js\ncode\n```'
+    expect(closeFenceOnEnter(mkState(md, at(md, 0, 5)), () => {})).toBe(false)
+  })
+
+  test('Shift-Enter in a list splits without continuing the bullet', () => {
+    const md = '- item'
+    const next = run(mkState(md, at(md, 0, 6)), splitWithoutPrefix)
+    expect(docToMarkdown(next.doc)).toBe('- item\n')
+  })
+})
+
+describe('heading shortcuts', () => {
+  test('Mod-2 turns a paragraph into ## and toggles back', () => {
+    let state = mkState('Title', 3)
+    state = run(state, setHeading(2))
+    expect(docToMarkdown(state.doc)).toBe('## Title')
+    state = run(state, setHeading(2))
+    expect(docToMarkdown(state.doc)).toBe('Title')
+  })
+
+  test('Mod-1 changes the level of an existing heading', () => {
+    const state = run(mkState('### Title', 6), setHeading(1))
+    expect(docToMarkdown(state.doc)).toBe('# Title')
+  })
+
+  test('Mod-1 on a bullet replaces the list prefix', () => {
+    const state = run(mkState('- item', 4), setHeading(1))
+    expect(docToMarkdown(state.doc)).toBe('# item')
+  })
+})
+
+describe('Tab outside lists', () => {
+  test('Tab in a code block inserts two spaces', () => {
+    const md = '```\ncode\n```'
+    const state = run(mkState(md, at(md, 1, 0)), insertTab)
+    expect(docToMarkdown(state.doc)).toBe('```\n  code\n```')
+  })
+
+  test('Tab over a multi-line code selection indents every line; Shift-Tab undoes it', () => {
+    const md = '```\na\nb\n```'
+    let state = mkState(md)
+    state = state.apply(
+      state.tr.setSelection(TextSelection.create(state.doc, at(md, 1, 0), at(md, 2, 1))),
+    )
+    state = run(state, insertTab)
+    expect(docToMarkdown(state.doc)).toBe('```\n  a\n  b\n```')
+    state = run(state, removeTab)
+    expect(docToMarkdown(state.doc)).toBe('```\na\nb\n```')
+  })
+
+  test('Tab in a paragraph inserts a tab character instead of leaving the editor', () => {
+    const state = run(mkState('ab', 2), insertTab)
+    expect(docToMarkdown(state.doc)).toBe('a\tb')
   })
 })

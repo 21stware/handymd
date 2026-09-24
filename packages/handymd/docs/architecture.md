@@ -38,10 +38,16 @@ flowchart TB
 
 ### 两级语义
 
-1. **行内元素**（`strong` / `em` / `code` / `strike` / `mark` / `link` / `image`）  
+1. **行内元素**（`strong` / `em` / `code` / `strike` / `mark` / `link`）  
    - hit 区间 `[from-1, to+1]`（扩一格判定）  
    - selection 相交 → Revealed（标记可见、弱化色）  
    - 离开且非 composition → Concealed（`font-size:0` 隐藏标记，语义样式保留）
+   - 范围选区只在两个端点处判定：选区覆盖的中间部分保持渲染态（全选 / 拖选不整片回源码）
+
+1.5 **图片**（`image`，原子行内元素）  
+   - 源码永远隐藏，只画预览 widget；对它而言 "revealed" = 选区完整覆盖整段源码（选中态）  
+   - imagePlugin 负责原子手感：单击选中、`Backspace`/`Delete` 先选中再删、方向键整体跨过；
+     落进源码内部的光标 / 选区端点被 appendTransaction 推到图片边界
 
 2. **块级 permanent**（`quote` / `bullet` / `todo` / `hr`）  
    - 一旦解析立即渲染，**永不**因光标进入回到源码  
@@ -69,7 +75,8 @@ flowchart TB
 | IME 冻结 | `composing` 时 `apply` 只 `decorations.map`，禁止 hitTest |
 | Interactive | Concealed 链接单击打开；Cmd/Ctrl+点击进入编辑 |
 | Broken | Revealed 态破坏标记 → 重解析无元素 → decoration 消失 |
-| 光标保护 | `caretGuardPlugin` 把落入隐藏前缀的 caret 推到内容起点；末尾空格为 `hm-caret-pad` |
+| 光标保护 | `caretGuardPlugin` 把落入隐藏前缀的 caret / 选区两端推到内容起点（`handleTextInput` 兜底 selectionchange 尚未同步时的快速输入）；末尾空格为 `hm-caret-pad` |
+| 源码模式 | `ConcealMeta.source`：blocks 照常解析（续行等命令要用），decoration 为空，光标保护与前缀相关命令全部让路 |
 | 性能 | 行内解析按行文本缓存；纯 selection 移动只重建 reveal 签名变化的块 |
 
 ```mermaid
@@ -107,12 +114,31 @@ stateDiagram-v2
 Enter 特殊规则：
 
 - 列表/引用（非行首）：split + 续前缀  
+- **列表/引用行首**（内容起点、行非空）：上方插入空项（待办一律未勾选），当前项原样下移  
 - **标题行首**（内容起点、行非空）：上方插空段落，当前行保持 `# Title`  
 - **标题行中/行末**：split，下一行是普通段落（不续 `#`）  
-- 空前缀行再 Enter：清空前缀，退出块格式  
-- **表格行**：下方插入同列数空表体行（表格请用 `insertTable` 创建，无输入触发）
+- 空前缀行再 Enter：嵌套项先退一级缩进，顶层项清空前缀、退出块格式  
+- **行内标记中间**（`**bo|ld**`）：左半补闭合、右半补开启标记；紧贴标记内侧时拆分点移到元素外侧  
+- **未闭合的围栏开行末尾**：自动补闭合行（也覆盖"会错配后面代码块闭合行"的情况）  
+- **Shift-Enter**：split 但不续前缀  
+- **表格行**（仅源码模式；渲染态下编辑在单元格编辑框内，见下）：下方插入同列数空表体行
 
-表格是与 fence 类似的跨行状态机（`tableHeader` → `tableSep` → `tableRow*`）；管道符 permanent conceal，分隔行折叠。 
+Backspace / Delete：
+
+- 内容起点 Backspace 去掉块格式（标题、有序列表同样）；嵌套列表先退一级；标题上方是空行时先删空行
+- 行尾 Delete 合并下一行时丢弃其块前缀；下一行是 hr 则整行删除
+- 紧贴表格的行首 Backspace / 行尾 Delete 不把正文并进管道源码：空行直接删除，否则进入相邻单元格
+
+剪贴板（`clipboardPlugin`）：纯文本进出都按 `\n` 一行一块；外部 HTML 转 Markdown；
+带 `data-pm-slice` 的内部复制走 ProseMirror 默认路径（保留空白）。
+
+表格是与 fence 类似的跨行状态机（`tableHeader` → `tableSep` → `tableRow*`），全部 permanent：
+
+- 表头元素携带整表源码（`attrs.tableSrc`），表头行渲染一个 `<table>` widget；分隔行与表体行折叠为零高
+- 单元格编辑：点击或选区经由键盘落进表格行时，对应格变为 widget 内的 plaintext 编辑框，
+  展示该格源码；每次输入把这一格写回对应行的源码区间 → widget 以新源码重建 → 焦点与光标还原到同一格
+- widget 的 `stopEvent` 让 ProseMirror 不接管编辑框的事件与 DOM 变更；导航、撤销、IME、粘贴在 `tableview.ts` 自行处理
+- 编辑期间锁定列宽（按预览态测量），避免展示源码时列宽随输入跳动
 
 ---
 

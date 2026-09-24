@@ -23,6 +23,7 @@ body {
   padding: 5px 12px;
   cursor: pointer;
   font-size: 13px;
+  white-space: nowrap;
 }
 .demo-bar button:hover { background: #f4efe7; }
 .pill {

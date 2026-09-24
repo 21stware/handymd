@@ -203,6 +203,15 @@ $('btn-readonly')?.addEventListener('click', async () => {
   p.setReadOnly(next)
   toast(next ? '已进入只读' : '已退出只读')
 })
+$('btn-export-pdf')?.addEventListener('click', async () => {
+  const p = await ensurePlayground()
+  try {
+    await p.exportPDF()
+  } catch (err) {
+    console.error(err)
+    toast('导出失败')
+  }
+})
 $('btn-new')?.addEventListener('click', async () => {
   const p = await ensurePlayground()
   p.openMarkdown('# Untitled\n\n', { name: 'untitled.md', handle: null })

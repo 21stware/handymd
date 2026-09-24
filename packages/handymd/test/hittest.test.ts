@@ -33,10 +33,12 @@ describe('isRevealed', () => {
     expect(isRevealed(strong, { from: 8, to: 8 }, true)).toBe(false)
   })
 
-  test('selection range intersecting element reveals', () => {
+  test('range selection reveals only at its endpoints', () => {
     const strong = el({ kind: 'strong', from: 5, to: 13, hitFrom: 4, hitTo: 14 })
-    expect(isRevealed(strong, { from: 0, to: 100 }, false)).toBe(true)
+    expect(isRevealed(strong, { from: 0, to: 100 }, false)).toBe(false)
     expect(isRevealed(strong, { from: 0, to: 3 }, false)).toBe(false)
+    expect(isRevealed(strong, { from: 0, to: 8 }, false)).toBe(true)
+    expect(isRevealed(strong, { from: 8, to: 100 }, false)).toBe(true)
   })
 })
 

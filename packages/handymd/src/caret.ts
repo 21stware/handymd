@@ -28,7 +28,7 @@ export function permanentPrefixAt(
   blockPos: number,
 ): { block: BlockMeta; el: ElementRange } | null {
   const st = concealKey.getState(state)
-  if (!st) return null
+  if (!st || st.source) return null
   for (const block of st.blocks) {
     if (block.pos !== blockPos) continue
     for (const el of block.elements) {
@@ -61,19 +61,41 @@ function escapeProtectedMarker(
   return null
 }
 
+function escapeAt(state: EditorState, pos: number): number {
+  const $pos = state.doc.resolve(pos)
+  if ($pos.depth !== 1) return pos
+  return escapeProtectedMarker(state, $pos.before(), pos) ?? pos
+}
+
+/**
+ * 折叠光标：推出隐藏前缀。
+ * 范围选区：两端各自推出 —— 否则三击选行 / Cmd+Shift+← 选到行首后输入或删除，
+ * 会把隐藏的 `- ` / `# ` 一起替换掉，格式无声丢失。
+ */
 export function caretGuardPlugin(): Plugin {
   return new Plugin({
     appendTransaction(_trs, _old, newState) {
       const sel = newState.selection
-      if (!(sel instanceof TextSelection) || !sel.empty) return null
+      if (!(sel instanceof TextSelection)) return null
       const st = concealKey.getState(newState)
-      if (!st || st.composing) return null
-      const $head = sel.$head
-      if ($head.depth !== 1) return null
+      if (!st || st.composing || st.source) return null
 
-      const next = escapeProtectedMarker(newState, $head.before(), sel.from)
-      if (next === null || next === sel.from) return null
-      return newState.tr.setSelection(TextSelection.create(newState.doc, next))
+      const anchor = escapeAt(newState, sel.anchor)
+      const head = escapeAt(newState, sel.head)
+      if (anchor === sel.anchor && head === sel.head) return null
+      return newState.tr.setSelection(TextSelection.create(newState.doc, anchor, head))
+    },
+    props: {
+      // selectionchange 是异步的：选中后立刻打字，替换范围可能仍是未收缩的 DOM 选区
+      handleTextInput(view, from, to, text) {
+        if (from === to) return false
+        const st = concealKey.getState(view.state)
+        if (!st || st.composing || st.source) return false
+        const start = escapeAt(view.state, from)
+        if (start === from || start > to) return false
+        view.dispatch(view.state.tr.insertText(text, start, to))
+        return true
+      },
     },
   })
 }

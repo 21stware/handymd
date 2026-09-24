@@ -398,6 +398,311 @@ check(
   }),
 )
 
+// ═══════════════════════════════════════════════════════════
+// 7. 行首 / 选区 / 剪贴板 / Tab / Shift-Enter / 源码模式（需要真实浏览器行为）
+// ═══════════════════════════════════════════════════════════
+async function loadDoc(md: string): Promise<void> {
+  await page.evaluate((m) => localStorage.setItem('handymd-demo', m), md)
+  await page.reload()
+  await page.waitForSelector('.ProseMirror[contenteditable=true]')
+  await page.waitForTimeout(300)
+}
+async function savedDoc(): Promise<string | null> {
+  await page.keyboard.press('ControlOrMeta+s')
+  await page.waitForTimeout(450)
+  return page.evaluate(() => localStorage.getItem('handymd-demo'))
+}
+/** 把光标（或选区）放到第 line 行第 col 列（0 基，按源码字符计） */
+async function setCaret(line: number, col: number, toCol?: number): Promise<void> {
+  await page.evaluate(
+    ([l, c, t]) => {
+      const view = (window as unknown as { editor: { view: any } }).editor.view
+      const doc = view.state.doc
+      let pos = 0
+      for (let i = 0; i < l; i++) pos += doc.child(i).nodeSize
+      const Sel = view.state.selection.constructor
+      view.dispatch(view.state.tr.setSelection(Sel.create(doc, pos + 1 + c, pos + 1 + (t ?? c))))
+      view.focus()
+    },
+    [line, col, toCol] as const,
+  )
+  await page.waitForTimeout(50)
+}
+async function paste(data: Record<string, string>): Promise<void> {
+  await page.evaluate((d) => {
+    const dt = new DataTransfer()
+    for (const [k, v] of Object.entries(d)) dt.setData(k, v)
+    document
+      .querySelector('.ProseMirror')!
+      .dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+  }, data)
+  await page.waitForTimeout(100)
+}
+
+await loadDoc('- first\n- second')
+await page.locator('.hm-block').nth(0).click({ clickCount: 3 })
+await page.keyboard.type('R')
+check('triple-click + type keeps the bullet', (await savedDoc()) === '- R\n- second')
+
+await loadDoc('# Title\nbody')
+await setCaret(0, 7)
+await page.keyboard.press('Shift+ArrowLeft')
+for (let i = 0; i < 6; i++) await page.keyboard.press('Shift+ArrowLeft')
+await page.keyboard.type('New')
+{ const got = await savedDoc(); check('select to line start + type keeps the heading', got === '# New\nbody', JSON.stringify(got)) }
+
+await loadDoc('intro **bold** text\nmore')
+await setCaret(1, 2)
+await page.keyboard.press('ControlOrMeta+a')
+await page.waitForTimeout(80)
+check(
+  'select-all keeps covered inline markers concealed',
+  (await page.locator('.hm-strong ~ .hm-marker:not(.hm-concealed), .hm-marker:not(.hm-concealed)').count()) === 0,
+)
+
+await loadDoc('- item')
+await setCaret(0, 6)
+await page.keyboard.press('Shift+Enter')
+await page.keyboard.type('X')
+{ const got = await savedDoc(); check('Shift-Enter in a list opens a plain line', got === '- item\nX', JSON.stringify(got)) }
+
+await loadDoc('para')
+await setCaret(0, 4)
+await page.keyboard.press('Tab')
+await page.keyboard.type('Y')
+{ const got = await savedDoc(); check('Tab in a paragraph stays in the editor', got === 'para\tY', JSON.stringify(got)) }
+
+await loadDoc('```\ncode\n```')
+await setCaret(1, 0)
+await page.keyboard.press('Tab')
+{ const got = await savedDoc(); check('Tab in a code block indents', got === '```\n  code\n```', JSON.stringify(got)) }
+
+await loadDoc('')
+await page.locator('.ProseMirror').click()
+await paste({ 'text/plain': 'a\n\nb\n\n\nc' })
+check('plain-text paste keeps blank lines', (await savedDoc()) === 'a\n\nb\n\n\nc')
+
+await loadDoc('')
+await page.locator('.ProseMirror').click()
+await paste({
+  'text/html': '<h2>Head</h2><ul><li>one</li></ul><p>x <strong>b</strong> <a href="https://a.b">l</a></p>',
+  'text/plain': 'Head\none\nx b l',
+})
+check('HTML paste converts to markdown', (await savedDoc()) === '## Head\n\n- one\n\nx **b** [l](https://a.b)')
+
+await loadDoc('see docs')
+await setCaret(0, 4, 8)
+await paste({ 'text/plain': 'https://example.com' })
+check('pasting a URL over a selection makes a link', ((await savedDoc()) ?? '').includes('](https://example.com)'))
+
+await loadDoc('l1\nl2\nl3')
+await page.locator('.ProseMirror').click()
+await page.keyboard.press('ControlOrMeta+a')
+const copiedText = await page.evaluate(() => {
+  const dt = new DataTransfer()
+  document
+    .querySelector('.ProseMirror')!
+    .dispatchEvent(new ClipboardEvent('copy', { clipboardData: dt, bubbles: true, cancelable: true }))
+  return dt.getData('text/plain')
+})
+check('copy keeps one newline per line', copiedText === 'l1\nl2\nl3', JSON.stringify(copiedText))
+
+await loadDoc('- task **b**')
+await page.locator('#toggle-source').click()
+await page.waitForTimeout(100)
+check(
+  'source mode shows every marker',
+  await page.evaluate(
+    () => !document.querySelector('.hm-concealed, .hm-bullet-dot') && !!document.querySelector('.handymd.hm-source'),
+  ),
+)
+await page.locator('#toggle-source').click()
+await page.waitForTimeout(100)
+check('leaving source mode renders again', (await page.locator('.hm-bullet-dot').count()) === 1)
+
+// ═══════════════════════════════════════════════════════════
+// 8. 表格：单一网格 / 单元格内编辑 / 键盘导航 / 离开表格
+// ═══════════════════════════════════════════════════════════
+await loadDoc('before\n\n| A | B |\n| --- | --- |\n| c | **d** |\n\nafter')
+check('table renders as a single grid', (await page.locator('table.hm-table-grid').count()) === 1)
+check(
+  'table rows sit flush (no gaps between rows)',
+  await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('table.hm-table-grid tr')] as HTMLElement[]
+    for (let i = 1; i < rows.length; i++) {
+      const prev = rows[i - 1]!.getBoundingClientRect()
+      const cur = rows[i]!.getBoundingClientRect()
+      if (Math.abs(cur.top - prev.bottom) > 0.5) return false
+    }
+    return rows.length === 2
+  }),
+)
+await page.locator('.hm-table-cell', { hasText: 'd' }).click()
+await page.waitForTimeout(80)
+check(
+  'clicked cell becomes an in-place editor with its source',
+  await page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null
+    return !!el?.classList.contains('hm-table-cell-editing') && el.textContent === '**d**'
+  }),
+)
+check('other rows stay rendered while editing', (await page.locator('table.hm-table-grid tr').count()) === 2)
+await page.keyboard.press('End')
+await page.keyboard.type('X')
+await page.keyboard.press('Tab')
+await page.keyboard.type('new')
+{
+  const got = await savedDoc()
+  check(
+    'typing in cells writes back to the pipe source',
+    got === 'before\n\n| A | B |\n| --- | --- |\n| c | **d**X |\n| new |  |\n\nafter',
+    JSON.stringify(got),
+  )
+}
+await page.locator('.hm-table-cell', { hasText: 'new' }).click()
+await page.keyboard.press('ArrowDown')
+await page.keyboard.type('Z')
+{
+  const got = await savedDoc()
+  check('ArrowDown on the last row leaves the table', got?.endsWith('|\nZ\nafter') ?? false, JSON.stringify(got))
+}
+
+// ═══════════════════════════════════════════════════════════
+// 9. 图片：API 插入 / 粘贴图片文件
+// ═══════════════════════════════════════════════════════════
+const PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+await loadDoc('intro\n')
+await setCaret(1, 0)
+await page.evaluate(() => (window as any).editor.insertImage({ src: 'https://example.com/a.png', alt: 'A' }))
+{
+  const got = await savedDoc()
+  check('insertImage adds an image line', got === 'intro\n![A](https://example.com/a.png)\n', JSON.stringify(got))
+}
+check('inserted image renders as a preview', (await page.locator('img.hm-image').count()) === 1)
+
+await loadDoc('')
+await page.locator('.ProseMirror').click()
+await page.evaluate((b64) => {
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+  const dt = new DataTransfer()
+  dt.items.add(new File([bytes], 'dot.png', { type: 'image/png' }))
+  document
+    .querySelector('.ProseMirror')!
+    .dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+}, PNG)
+await page.waitForTimeout(300)
+{
+  const got = (await savedDoc()) ?? ''
+  check('pasting an image file stores it as an assets/ reference', /^!\[dot\]\(assets\/dot-[0-9a-f]+\.png\)/.test(got), got.slice(0, 60))
+}
+await page.waitForSelector('img.hm-image')
+check(
+  'stored image resolves to a loadable URL',
+  await page.evaluate(() => (document.querySelector('img.hm-image') as HTMLImageElement).src.startsWith('blob:')),
+)
+
+await loadDoc('intro\n![A](https://example.com/a.png)\nafter')
+await page.locator('img.hm-image').click()
+await page.waitForTimeout(80)
+check('clicking an image selects it', (await page.locator('img.hm-image-selected').count()) === 1)
+check('clicking an image does not reveal its source', !(await page.evaluate(() => (document.querySelector('.ProseMirror')?.textContent ?? '').includes('![A]') && !!document.querySelector('.hm-image-alt'))))
+await page.keyboard.press('Backspace')
+{
+  const got = await savedDoc()
+  check('Backspace deletes the selected image', got === 'intro\n\nafter', JSON.stringify(got))
+}
+await loadDoc('intro\n![A](https://example.com/a.png)\nafter')
+await setCaret(1, '![A](https://example.com/a.png)'.length)
+await page.keyboard.press('Backspace')
+await page.waitForTimeout(60)
+check('Backspace after an image selects it first', (await page.locator('img.hm-image-selected').count()) === 1)
+
+// ═══════════════════════════════════════════════════════════
+// 10. 表格结构：行列把手 / 拖动排序 / 添加条 / 横向滚动
+// ═══════════════════════════════════════════════════════════
+await loadDoc('| A | B |\n| --- | --- |\n| r1 | x |\n| r2 | y |\n\nafter')
+await page.locator('.hm-table-cell', { hasText: 'r1' }).hover()
+await page.locator('.hm-table-handle-row').click()
+await page.waitForTimeout(80)
+check('row handle picks the whole row', (await page.locator('.hm-table-cell-picked').count()) === 2)
+await page.keyboard.press('Alt+ArrowDown')
+await page.waitForTimeout(80)
+{
+  const got = await savedDoc()
+  check('Alt+ArrowDown moves the picked row', got === '| A | B |\n| --- | --- |\n| r2 | y |\n| r1 | x |\n\nafter', JSON.stringify(got))
+}
+await page.locator('.hm-table-cell', { hasText: 'B' }).hover()
+const colGrip = (await page.locator('.hm-table-handle-col').boundingBox())!
+const headA = (await page.locator('th.hm-table-cell', { hasText: 'A' }).boundingBox())!
+await page.mouse.move(colGrip.x + colGrip.width / 2, colGrip.y + colGrip.height / 2)
+await page.mouse.down()
+await page.mouse.move(headA.x + 4, colGrip.y + colGrip.height / 2, { steps: 6 })
+await page.mouse.up()
+await page.waitForTimeout(80)
+{
+  const got = await savedDoc()
+  check('dragging a column handle reorders columns', got?.startsWith('| B | A |\n| --- | --- |\n| y | r2 |') ?? false, JSON.stringify(got))
+}
+await page.keyboard.press('Delete')
+await page.waitForTimeout(80)
+{
+  const got = await savedDoc()
+  check('Delete removes the picked column', got?.startsWith('| A |\n| --- |\n| r2 |') ?? false, JSON.stringify(got))
+}
+await page.locator('.hm-table-wrap').hover()
+await page.locator('.hm-table-add-col').click()
+await page.keyboard.type('Z')
+{
+  const got = await savedDoc()
+  check('add-column bar appends a column and edits its header', got?.startsWith('| A | Z |\n| --- | --- |') ?? false, JSON.stringify(got))
+}
+check(
+  'table corners are not clipped (border lives on the table)',
+  await page.evaluate(() => {
+    const t = document.querySelector('table.hm-table-grid') as HTMLElement
+    const s = getComputedStyle(t)
+    return s.borderTopLeftRadius !== '0px' && s.borderTopWidth === '1px'
+  }),
+)
+await loadDoc(`| ${Array.from({ length: 14 }, (_, i) => `Column ${i}`).join(' | ')} |\n|${' --- |'.repeat(14)}\n| ${Array.from({ length: 14 }, (_, i) => `v${i}`).join(' | ')} |`)
+check(
+  'wide tables scroll horizontally instead of squeezing cells',
+  await page.evaluate(() => {
+    const s = document.querySelector('.hm-table-scroll') as HTMLElement
+    const cell = document.querySelector('.hm-table-cell') as HTMLElement
+    return s.scrollWidth > s.clientWidth + 20 && cell.getBoundingClientRect().width >= 60
+  }),
+)
+await page.locator('#toggle-readonly').click()
+await page.waitForTimeout(80)
+await page.locator('.hm-table-cell').first().hover()
+check('readOnly hides table handles', (await page.locator('.hm-table-handle:visible').count()) === 0)
+await page.locator('#toggle-readonly').click()
+
+// ═══════════════════════════════════════════════════════════
+// 11. 导出 PDF：渲染态克隆进打印 iframe
+// ═══════════════════════════════════════════════════════════
+await loadDoc('# Export me\n\nsome **bold** text\n\n- [x] done\n\n```mermaid\nflowchart LR\n  A --> B\n```\n\n| A | B |\n| --- | --- |\n| 1 | 2 |')
+await page.waitForSelector('.hm-diagram svg', { timeout: 15_000 }).catch(() => {})
+await setCaret(2, 7) // 光标在 **bold** 内：导出时也必须是渲染态
+const printed = await page.evaluate(async () => {
+  let html = ''
+  await (window as any).editor.exportToPDF({
+    print: (w: Window) => {
+      html = w.document.documentElement.outerHTML
+    },
+  })
+  return html
+})
+check('export button exists in the demo bar', (await page.locator('#export-pdf').count()) === 1)
+check('export uses the first heading as title', printed.includes('<title>Export me</title>'))
+check('export renders the mermaid SVG', /class="hm-diagram[^"]*"[^>]*>\s*<svg/.test(printed))
+check('export hides markers even under the caret', !/<span class="hm-marker">\*\*<\/span>/.test(printed))
+check('export keeps checkbox state', /<input[^>]*checked/.test(printed))
+check('export drops table handles', !/<div class="hm-table-ui/.test(printed))
+check('export leaves no print frame behind', (await page.locator('iframe').count()) === 0)
+
 await browser.close()
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)

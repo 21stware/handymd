@@ -113,6 +113,8 @@ type RegionMaps = {
   fenceRegion: Map<number, { from: number; to: number }>
   diagramCode: Map<number, string>
   tableEdge: Map<number, 'first' | 'last' | 'only'>
+  /** 表头行 → 整张表的源码（表头、分隔行、表体以 \n 拼接） */
+  tableSrc: Map<number, string>
 }
 
 function collectLines(doc: PMNode): {
@@ -152,6 +154,7 @@ function buildRegions(
   }
 
   const tableEdge = new Map<number, 'first' | 'last' | 'only'>()
+  const tableSrc = new Map<number, string>()
   for (let i = 0; i < lines.length; i++) {
     if (lines[i]!.t !== 'tableHeader') continue
     let j = i + 1
@@ -162,9 +165,10 @@ function buildRegions(
       tableEdge.set(i, 'first')
       tableEdge.set(last, 'last')
     }
+    tableSrc.set(i, texts.slice(i, j).join('\n'))
   }
 
-  return { fenceRegion, diagramCode, tableEdge }
+  return { fenceRegion, diagramCode, tableEdge, tableSrc }
 }
 
 /** 单行元素解析（绝对坐标）。 */
@@ -179,7 +183,7 @@ function buildLineElements(
   const start = pos + 1
   const blockHit = { hitFrom: pos, hitTo: pos + size }
   const els: ElementRange[] = []
-  const { fenceRegion, diagramCode, tableEdge } = regions
+  const { fenceRegion, diagramCode, tableEdge, tableSrc } = regions
 
   const inline = (offset: number): void => {
     const sub = text.slice(offset)
@@ -371,7 +375,8 @@ function buildLineElements(
       els.push({
         kind,
         scope: 'block',
-        permanent: kind === 'tableSep',
+        // 表格永远以网格呈现，编辑在单元格编辑框里进行，不回到管道源码
+        permanent: true,
         from: pos,
         to: pos + size,
         ...blockHit,
@@ -379,7 +384,10 @@ function buildLineElements(
           kind === 'tableSep'
             ? [{ from: start, to: start + text.length }]
             : parsed.pipes.map((p) => ({ from: start + p.from, to: start + p.to })),
-        attrs: { colCount, tableEdge: edge },
+        attrs:
+          kind === 'tableHeader'
+            ? { colCount, tableEdge: edge, tableSrc: tableSrc.get(i) ?? text }
+            : { colCount, tableEdge: edge },
       })
       if (kind !== 'tableSep') {
         for (let c = 0; c < parsed.cells.length; c++) {
@@ -454,13 +462,15 @@ function lineStructureEqual(
   li: LineInfo,
   edge: 'first' | 'last' | 'only' | undefined,
   diagramCode: string | undefined,
+  tableSrc: string | undefined,
 ): boolean {
   if (old.text !== text) return false
   if (!lineInfoEqual(old.line, li)) return false
-  const oldEdge = old.elements.find(
+  const oldTable = old.elements.find(
     (e) => e.kind === 'tableHeader' || e.kind === 'tableRow' || e.kind === 'tableSep',
-  )?.attrs?.tableEdge
-  if (oldEdge !== edge) return false
+  )?.attrs
+  if (oldTable?.tableEdge !== edge) return false
+  if (oldTable?.tableSrc !== tableSrc) return false
   const oldCode = old.elements.find((e) => e.kind === 'diagramOpen')?.attrs?.code
   if ((oldCode ?? '') !== (diagramCode ?? '')) return false
   return true
@@ -533,11 +543,12 @@ export function parseDocIncremental(
     const li = lines[i]!
     const edge = regions.tableEdge.get(i)
     const dcode = regions.diagramCode.get(i)
+    const tsrc = li.t === 'tableHeader' ? regions.tableSrc.get(i) : undefined
 
     const j = newToOld[i]
     if (j !== null) {
       const old = prevBlocks[j]!
-      if (lineStructureEqual(old, text, li, edge, dcode)) {
+      if (lineStructureEqual(old, text, li, edge, dcode, tsrc)) {
         const mappedEls = mapElements(old.elements, mapping)
         if (mappedEls) {
           // structure split 时 map 会把块级 from/to/hit 拉到下一行；

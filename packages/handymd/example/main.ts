@@ -1,4 +1,9 @@
-import { createEditor, createMermaidRenderer, createShikiHighlighter } from '../src/index'
+import {
+  createEditor,
+  createLocalImageStore,
+  createMermaidRenderer,
+  createShikiHighlighter,
+} from '../src/index'
 import '../src/style.css'
 import './demo.css'
 
@@ -39,6 +44,11 @@ flowchart LR
 
 标签走 pill 样式：#demo/handymd
 
+| 元素 | 编辑方式 | 说明 |
+| --- | :---: | --- |
+| 表格 | 单元格内 | 点击格子直接改，Tab / Enter 导航，**行内样式**照常生效 |
+| 图片 | 粘贴 / 拖入 | 或点右上角「插入图片」 |
+
 ---
 
 分隔线立即渲染，退格整体删除。保存是防抖自动的（看右上角状态），blur 与 ⌘S 会立即 flush。`
@@ -48,8 +58,13 @@ const phaseEl = document.getElementById('phase')!
 const saveEl = document.getElementById('save')!
 const conflictEl = document.getElementById('conflict')!
 
+// 粘贴 / 插入的图片存进 IndexedDB，Markdown 里只写 `assets/<name>-<hash>.png`
+const images = createLocalImageStore()
+
 const editor = createEditor({
   mount: document.getElementById('editor')!,
+  uploadImage: images.upload,
+  resolveImage: images.resolve,
   load: async () => {
     await new Promise((r) => setTimeout(r, 200)) // 模拟网络
     return localStorage.getItem(KEY) ?? SAMPLE
@@ -72,12 +87,29 @@ const editor = createEditor({
   },
 })
 
+// 调试 / e2e 用
+;(window as unknown as { editor: typeof editor }).editor = editor
+
 document.getElementById('insert-table')!.addEventListener('click', () => {
   editor.focus()
   editor.insertTable({ rows: 3, cols: 3 })
 })
+const imageFile = document.getElementById('image-file') as HTMLInputElement
+document.getElementById('insert-image')!.addEventListener('click', () => imageFile.click())
+imageFile.addEventListener('change', () => {
+  if (!imageFile.files?.length) return
+  editor.focus()
+  void editor.insertImageFiles(imageFile.files)
+  imageFile.value = ''
+})
+document.getElementById('export-pdf')!.addEventListener('click', () => {
+  void editor.exportToPDF({ title: 'handymd 演示' })
+})
 document.getElementById('toggle-readonly')!.addEventListener('click', () => {
   editor.setReadOnly(!editor.readOnly)
+})
+document.getElementById('toggle-source')!.addEventListener('click', () => {
+  editor.setSourceMode(!editor.sourceMode)
 })
 document.getElementById('flush')!.addEventListener('click', () => {
   void editor.flush()

@@ -4,6 +4,7 @@
  */
 import {
   createEditor,
+  createLocalImageStore,
   createMermaidRenderer,
   createShikiHighlighter,
   type HandyEditor,
@@ -19,6 +20,8 @@ export type PlaygroundApi = {
   setReadOnly: (v: boolean) => void
   getReadOnly: () => boolean
   saveToHandle: () => Promise<boolean>
+  /** 以渲染态打开打印对话框（存储为 PDF），文件名取当前文稿名 */
+  exportPDF: () => Promise<void>
   setFileHandle: (handle: FileSystemFileHandle | null, name?: string) => void
   destroy: () => Promise<void>
 }
@@ -48,9 +51,13 @@ export async function mountPlayground(
 
   const dark =
     typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+  // 图片存进浏览器（IndexedDB），Markdown 里只写 `assets/<name>-<hash>.png`，不内联 base64
+  const images = createLocalImageStore()
   const editor = createEditor({
     mount,
     content: SAMPLE_MARKDOWN,
+    uploadImage: images.upload,
+    resolveImage: images.resolve,
     onChange: () => hooks.onSaveStatus?.('dirty'),
     highlight: createShikiHighlighter({ theme: dark ? 'github-dark' : 'github-light' }),
     // Promise-accepted: mermaid/shiki resolve via import map after first paint
@@ -104,6 +111,7 @@ export async function mountPlayground(
       hooks.onSaveStatus?.('clean')
       return true
     },
+    exportPDF: () => editor.exportToPDF({ title: fileName.replace(/\.(md|markdown|mdown|txt)$/i, '') }),
     setFileHandle(handle, name) {
       fileHandle = handle
       if (name) fileName = name

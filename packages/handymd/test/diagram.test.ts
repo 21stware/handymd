@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { EditorState, TextSelection } from 'prosemirror-state'
 import { EditorView } from 'prosemirror-view'
-import { concealPlugin } from '../src/conceal/plugin'
+import { concealPlugin, setConcealMeta } from '../src/conceal/plugin'
 import { interactionsPlugin } from '../src/interactions'
 import { createDiagramRenderCallback, type DiagramRenderer } from '../src/diagram'
 import { markdownToDoc } from '../src/markdown'
@@ -144,6 +144,46 @@ describe('diagram block in the view (Live Render)', () => {
     // 区域 Revealed：widget 消失，源码可见
     expect(view.dom.querySelector('.hm-diagram')).toBeNull()
     expect(view.dom.querySelectorAll('.hm-code-line').length).toBe(2)
+    view.destroy()
+  })
+
+  function clickDiagram(view: EditorView): void {
+    const widget = view.dom.querySelector('.hm-diagram') as HTMLElement
+    const evt = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 })
+    Object.defineProperty(evt, 'target', { value: widget })
+    ;(
+      interactionsPlugin().props as {
+        handleDOMEvents: { mousedown: (v: EditorView, e: Event) => boolean }
+      }
+    ).handleDOMEvents.mousedown(view, evt)
+  }
+
+  test('readOnly: clicking the diagram keeps it rendered', () => {
+    const view = createView(MD, MD.length)
+    view.dispatch(setConcealMeta(view.state.tr, { readOnly: true }))
+    clickDiagram(view)
+    expect(view.dom.querySelector('.hm-diagram svg')).toBeTruthy()
+    // 即便光标被放进围栏，只读态也不 reveal
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 14)))
+    expect(view.dom.querySelector('.hm-diagram svg')).toBeTruthy()
+    view.destroy()
+  })
+
+  test('non-editable view (host-controlled) does not enter the fence on click', () => {
+    const view = createView(MD, MD.length)
+    view.setProps({ editable: () => false })
+    clickDiagram(view)
+    expect(view.state.selection.from).not.toBe(11)
+    expect(view.dom.querySelector('.hm-diagram svg')).toBeTruthy()
+    view.destroy()
+  })
+
+  test('switching to readOnly during a stuck IME composition still conceals the fence', () => {
+    const view = createView(MD, 14)
+    expect(view.dom.querySelector('.hm-diagram')).toBeNull()
+    view.dispatch(setConcealMeta(view.state.tr, { composing: true }))
+    view.dispatch(setConcealMeta(view.state.tr, { readOnly: true }))
+    expect(view.dom.querySelector('.hm-diagram svg')).toBeTruthy()
     view.destroy()
   })
 })
